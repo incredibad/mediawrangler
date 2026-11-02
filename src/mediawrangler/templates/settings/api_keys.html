@@ -1,0 +1,41 @@
+{% extends "settings/_layout.html" %}
+{% block title %}API keys{% endblock %}
+{% block settings %}
+{% if new_key %}
+<section class="card">
+  <div class="flash ok">API key "{{ new_key_name }}" created. Copy it now; it won't be shown again.</div>
+  <code class="secret">{{ new_key }}</code>
+  <p class="muted">Send it as <code>Authorization: Bearer &lt;key&gt;</code>.</p>
+</section>
+{% endif %}
+<section class="card">
+  <h2>API keys</h2>
+  <p class="muted">For scripts and other tools calling MediaWrangler's own API (<code>/api/v1/…</code>).</p>
+  {% if keys %}
+  <table>
+    <thead><tr><th>Name</th><th>Key</th><th>Created</th><th>Last used</th><th></th></tr></thead>
+    <tbody>
+    {% for k in keys %}
+      <tr>
+        <td>{{ k.name }}</td>
+        <td><code>{{ k.prefix }}…</code></td>
+        <td>{{ k.created_at | localtime }}</td>
+        <td>{{ k.last_used_at | localtime }}</td>
+        <td>
+          <form method="post" action="/settings/api-keys/{{ k.id }}/revoke" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="link danger-text">Revoke</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  <form method="post" action="/settings/api-keys" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input name="name" placeholder="Key name, e.g. home-assistant" maxlength="64" required>
+    <button type="submit">Create key</button>
+  </form>
+</section>
+{% endblock %}

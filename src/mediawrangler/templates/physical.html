@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}Physical media{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+<h1>Physical media</h1>
+{% if not view %}
+  <div class="card"><p>No libraries yet. Sync your master media server first.</p>
+    <a class="button" href="/">Go to the overview</a></div>
+{% else %}
+<nav class="subnav">
+  {% for g in groups %}<a href="{{ link(group=g.id) }}" data-keep {% if g.id == current.id %}aria-current="page"{% endif %}>{{ g.name }}</a>{% endfor %}
+</nav>
+
+<section class="card">
+  <div class="summary">
+    {% set ref = view.summaries[view.ref_id] if view.ref_id else none %}
+    {% set ref_name = ref.source.name if ref else "" %}
+    {% for col in view.columns %}{% set s = view.summaries[col.id] %}{% set rel = ref and col.id != view.ref_id %}
+      <div class="summary-col summary-box">
+        <div class="summary-head">{{ dx.head(col) }}</div>
+        <div class="stats">
+          {% call dx.stat("Files", true) %}{{ "{:,}".format(s.files) }}{% if rel %} {{ dx.delta(s.files, ref.files, ref_name) }}{% endif %}{% endcall %}
+          {% call dx.stat("Folders") %}{{ "{:,}".format(s.folders) }}{% if rel %} {{ dx.delta(s.folders, ref.folders, ref_name, true) }}{% endif %}{% endcall %}
+          {% if s.size %}{% call dx.stat("Size") %}{{ s.size | filesize }}{% if rel and ref.size %} {{ dx.delta_size(s.size, ref.size, ref_name, true) }}{% endif %}{% endcall %}{% endif %}
+          {% if s.role == "disk" %}
+            {% call dx.stat("Folders not on disk") %}{{ dx.count_link(s.issues.get("not_on_disk", 0), "+", link(filter='not_on_disk'), "not_on_disk") }}{% endcall %}
+            {% call dx.stat("Unusual files") %}{{ dx.count_link(s.issues.get("odd", 0), "!", link(filter='odd'), "odd") }}{% endcall %}
+          {% elif s.role == "arr" %}
+            {% call dx.stat("On disk, not in any arr") %}{{ dx.count_link(s.issues.get("unmanaged", 0), "−", link(filter='unmanaged'), "unmanaged") }}{% endcall %}
+          {% else %}
+            {% call dx.stat("Not picked up") %}{{ dx.count_link(s.issues.get("not_picked_up", 0), "−", link(filter='not_picked_up', source=col.id), "not_picked_up", col.id) }}{% endcall %}
+            {% if s.issues.get("skipped") %}{% call dx.stat("Skipped") %}{{ dx.count_link(s.issues.get("skipped"), "−", link(filter='skipped', source=col.id), "skipped", col.id) }}{% endcall %}{% endif %}
+          {% endif %}
+          {% if s.role != "disk" or col.id != view.ref_id %}
+            {% call dx.stat("Count diffs") %}{{ dx.count_link(s.issues.get("count", 0), "", link(filter='count', source=col.id), "count", col.id) }}{% endcall %}
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if not view.disk_id %}
+    <p class="flash warn">The media share isn't in this group, so there's no ground truth to compare with. Mount the share and put its folder in this library on the <a href="/settings/groups">Libraries page</a>.</p>
+  {% endif %}
+  {% for sid, u in view.unmapped.items() %}{% set src = view.summaries[sid].source %}
+    <div class="flash error">
+      <strong>{{ u.count }} {{ "path" if u.count == 1 else "paths" }} from {{ src.name }} match no path-map rule</strong>, so they can't be compared.
+      <a href="/settings/groups">Fix on the Libraries page</a>.
+      <div class="small">{% for p in u.samples %}<code>{{ p }}</code><br>{% endfor %}</div>
+    </div>
+  {% endfor %}
+  {% for sid, u in view.outside.items() %}{% set src = view.summaries[sid].source %}
+    <div class="flash warn">
+      {{ u.count }} {{ "path" if u.count == 1 else "paths" }} from {{ src.name }} map outside this group's folders. <a href="/settings/groups">Move the library on the Libraries page</a>.
+      <div class="small">{% for p in u.samples %}<code>{{ p }}</code><br>{% endfor %}</div>
+    </div>
+  {% endfor %}
+</section>
+
+<section class="card">
+  {% include "_filterbar.html" %}
+
+  <div class="table-wrap">
+  <table class="matrix striped" id="physical-table">
+    <thead><tr><th>Folder</th>{% for col in view.columns %}<th class="s{{ loop.index0 % 2 }}">{{ dx.app(col) }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in view.rows %}
+      <tr data-flags="{{ row.flags | sort | join(' ') }}" data-search="{{ row.search }}" {% if row.folder not in visible %}hidden{% endif %}>
+        <td class="title"><div class="titleline"><span class="trunc" data-tip="{{ row.name }}" data-tip-truncated><a href="/physical/folder?group={{ current.id }}&folder={{ row.folder | urlencode }}"><strong>{{ row.name }}</strong></a></span>
+          {% if "duplicate" in row.flags %}<span class="tag warn">duplicates</span>{% endif %}{% if "odd" in row.flags %}<span class="tag warn" data-tip="{{ row.odd | length }} unusual {{ "file" if row.odd | length == 1 else "files" }} in this folder (archive, program, unfinished download or macOS stub): open the folder to see them">unusual files</span>{% endif %}
+          {% if row.flags or row.not_managed is not none %}
+          <details class="fix-menu"><summary>Fix ▾</summary><div class="fix-items">
+            {% for col in view.columns %}{% set cell = row.cells[col.id] %}{% set sid = col.id %}{% set role = view.roles[sid] %}
+              {% set problem = role != "disk" and (("not_picked_up:%d" % sid) in row.flags or ("count:%d" % sid) in row.flags or ("skipped:%d" % sid) in row.flags or (role == "arr" and cell.tracked and not cell.present) or cell.duplicate or ("not_on_disk" in row.flags and cell.present) or ("unmanaged" in row.flags and sid in addable and not cell.present)) %}
+              {% if problem %}
+              <div class="fix-group">{{ col.name }}</div>
+              {% for kind, label, hint, ok in [
+                ("scan", ("Ask %s to rescan its library" if col.type == "sportarr" else "Ask %s to rescan this show" if role == "arr" else "Ask %s to look for new files") % col.name, ("It can't rescan one league." if col.type == "sportarr" else "This show's folder." if role == "arr" else "This folder only."), sid in scannable),
+                ("refresh", "Re-download %s's details for this show" % col.name, "Names, episodes and images. Keeps the match.", sid in refreshable and ("count:%d" % sid) in row.flags),
+              ] if ok %}
+              <form hx-get="/fix/folder-task" hx-target="#fix-body">
+                <input type="hidden" name="group" value="{{ current.id }}">
+                <input type="hidden" name="source" value="{{ sid }}">
+                <input type="hidden" name="folder" value="{{ row.folder }}">
+                <input type="hidden" name="kind" value="{{ kind }}">
+                <button type="submit">{{ label }}<span class="hint">{{ hint }}</span></button>
+              </form>
+              {% endfor %}
+              {% for action, label, hint, ok in [
+                ("add", "Add to %s" % col.name, "Unmonitored: nothing is downloaded.", sid in addable and "unmanaged" in row.flags and not cell.present),
+                ("override", "Tell %s what this folder is" % col.name, "For a folder it skipped.", sid in overridable and ("skipped:%d" % sid) in row.flags),
+              ] if ok %}
+              <form hx-get="/fix/identify" hx-target="#fix-body">
+                <input type="hidden" name="group" value="{{ current.id }}">
+                <input type="hidden" name="source" value="{{ sid }}">
+                <input type="hidden" name="folder" value="{{ row.folder }}">
+                <input type="hidden" name="action" value="{{ action }}">
+                <button type="submit">{{ label }}…<span class="hint">{{ hint }}</span></button>
+              </form>
+              {% endfor %}
+              {% elif role == "disk" %}
+              <div class="fix-group">{{ col.name }}</div>
+              <form hx-post="/fix/reread-folder" hx-swap="none">
+                <input type="hidden" name="group" value="{{ current.id }}">
+                <input type="hidden" name="folder" value="{{ row.folder }}">
+                <button type="submit">Re-read this folder on the share<span class="hint">Read-only: sends nothing to any app.</span></button>
+              </form>
+              {% if "unmanaged" in row.flags %}{% set ns = namespace(arr=none) %}
+              {% for c in view.columns if not ns.arr and c.id in addable and not row.cells[c.id].present %}{% set ns.arr = c %}{% endfor %}{% set arr = ns.arr %}
+              {% if arr %}
+              <form hx-get="/fix/leftovers" hx-target="#fix-body">
+                <input type="hidden" name="group" value="{{ current.id }}">
+                <input type="hidden" name="source" value="{{ arr.id }}">
+                <input type="hidden" name="folder" value="{{ row.folder }}">
+                <button type="submit">Delete the leftover files…<span class="hint">{{ arr.name }} does not track this folder. To the trash for 30 days; every app is brought up to date.</span></button>
+              </form>
+              {% endif %}{% endif %}
+              {% endif %}
+            {% endfor %}
+            <div class="fix-group">This show</div>
+            {% if "unmanaged" in row.flags %}
+            <form hx-get="/fix/not-managed" hx-target="#fix-body">
+              <input type="hidden" name="group" value="{{ current.id }}">
+              <input type="hidden" name="folder" value="{{ row.folder }}">
+              <button type="submit">Not managed by an arr…<span class="hint">Kept out of Sonarr and Radarr on purpose. Sends nothing.</span></button>
+            </form>
+            {% elif row.not_managed is not none %}
+            <form hx-post="/fix/not-managed" hx-target="#fix-body">
+              <input type="hidden" name="group" value="{{ current.id }}">
+              <input type="hidden" name="folder" value="{{ row.folder }}">
+              <input type="hidden" name="clear" value="true">
+              <button type="submit">Manage again<span class="hint">Takes off "not managed by an arr". Sends nothing.</span></button>
+            </form>
+            {% endif %}
+            {% if view.disk_id %}
+            <form hx-get="/fix/rescan-all" hx-target="#fix-body">
+              <input type="hidden" name="group" value="{{ current.id }}">
+              <input type="hidden" name="folder" value="{{ row.folder }}">
+              <button type="submit">Rescan this show in every app<span class="hint">Reads the share, then asks each app.</span></button>
+            </form>
+            {% endif %}
+            <a href="/physical/folder?group={{ current.id }}&folder={{ row.folder | urlencode }}">List the files in this folder<span class="hint">Each app's files, side by side.</span></a>
+          </div></details>
+          {% endif %}
+        </div></td>
+        {% for col in view.columns %}{% set cell = row.cells[col.id] %}
+          {% set ref_n = row.cells[view.ref_id].count if view.ref_id else none %}
+          {% set by_choice = row.not_managed is not none and view.roles[col.id] == "arr" %}
+          <td class="cell s{{ loop.index0 % 2 }} {% if not cell.present %}{{ 'low' if cell.state == 'skipped' or by_choice else 'missing' }}{% endif %}"><div class="pad">
+            {% if cell.state == "skipped" %}
+              <span class="status unknown" title="{{ cell.reason or '' }}">Skipped</span>
+              <div class="small muted">{{ (cell.reason or "")|replace("_", " ") }}{% if cell.reported %} · {{ cell.reported }} files{% endif %}</div>
+            {% elif not cell.present %}
+              {% if col.id == view.disk_id %}<span class="status bad">Not on disk</span>
+              {% elif cell.tracked %}<span class="status unknown">No files</span><div class="small muted">tracked, nothing imported</div>
+              {% elif by_choice %}<span class="status unknown" title="{{ row.not_managed or 'Kept out of the arrs on purpose' }}">Not managed</span><div class="small muted">by choice{% if row.not_managed %} · {{ row.not_managed }}{% endif %}</div>
+              {% elif view.roles[col.id] == "arr" %}<span class="status bad">Not in {{ col.name }}</span>
+              {% else %}<span class="status bad">Not picked up</span>{% endif %}
+            {% else %}
+              {% set n = cell.count %}
+              <span>{{ n if n is not none else "✓" }}</span>
+              {% if col.id != view.ref_id and ref_n and n is not none and n != ref_n %}<span class="delta {{ 'bad' if n < ref_n else 'warn' }}">{{ "%+d" % (n - ref_n) }}</span>{% endif %}
+              {% if cell.duplicate %}<span class="tag warn">dup</span>{% endif %}
+              {% if cell.state and cell.state not in ("resolved", "skipped") %}<div class="small muted">{{ cell.state }}</div>{% endif %}
+            {% endif %}
+          </div></td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    {% set colspan = view.columns | length + 1 %}{% include "_emptyrow.html" %}
+    </tbody>
+  </table>
+  </div>
+  <p class="muted small">Counts are video files, leaving out extras (trailers, featurettes, samples).</p>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/table-filter.js?v={{ version }}" defer></script>{% endblock %}

@@ -1,0 +1,9 @@
+{% if state == "reading" %}
+<div class="fix-wait" hx-get="{{ url }}" hx-trigger="every 2s" hx-swap="outerHTML"><span class="spinner"></span> {{ text }}</div>
+{% elif state == "done" and text %}
+<div class="flash warn">Done, with one thing to know: {{ text }}</div>
+{% elif state == "done" %}
+<div class="flash ok" data-reload-now>Done. Reloading the page…</div>
+{% else %}
+<div class="flash error">{{ text }}</div>
+{% endif %}

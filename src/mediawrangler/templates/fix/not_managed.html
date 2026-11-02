@@ -1,0 +1,17 @@
+<div class="fix-head">
+  <h2>Not managed by an arr?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p><strong>{{ name }}</strong></p>
+<p class="muted">For a folder you keep out of Sonarr and Radarr on purpose, such as a fan edit with no TVDB entry. Its arr cells turn grey ("Not managed") and it stops counting as "On disk, not in any arr". Nothing is sent to any app, and the mark can be taken off from the same menu.</p>
+<form hx-post="/fix/not-managed" hx-target="#fix-body" hx-disabled-elt="find button">
+  <input type="hidden" name="group" value="{{ group.id }}">
+  <input type="hidden" name="folder" value="{{ folder }}">
+  <label>Reason <span class="muted small">(optional, shown on the page)</span>
+    <input type="text" name="reason" maxlength="200" placeholder="e.g. Fan edit, no TVDB entry">
+  </label>
+  <div class="row">
+    <button type="button" data-close>Cancel</button>
+    <button type="submit" class="primary">Mark as not managed</button>
+  </div>
+</form>

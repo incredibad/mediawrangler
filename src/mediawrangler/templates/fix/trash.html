@@ -1,0 +1,29 @@
+<div class="fix-head">
+  <h2>Move to the trash?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+{% if leftover %}<p><strong>{{ arr.name }}</strong> does not track this folder, so {{ "this file is" if files | length == 1 else "these files are" }} left over from a title that is no longer in it. Nothing is deleted: {{ "it is" if files | length == 1 else "they are" }} moved into the trash folder, kept for 30 days, and can be put back from Settings → Trash. Once every app has caught up, the emptied folder is removed.</p>{% elif arr %}<p><strong>{{ arr.name }}</strong> tracks this folder but has no record of {{ "this file" if files | length == 1 else "these files" }}. Nothing is deleted: {{ "it is" if files | length == 1 else "they are" }} moved into the trash folder, kept for 30 days, and can be put back from Settings → Trash.</p>{% else %}<p>{{ "This file is" if files | length == 1 else "These files are" }} not part of any release: an archive, a program, an unfinished download or a macOS stub. Nothing is deleted: {{ "it is" if files | length == 1 else "they are" }} moved into the trash folder, kept for 30 days, and can be put back from Settings → Trash. MediaWrangler never opens {{ "it" if files | length == 1 else "them" }}.</p>{% endif %}
+{% if problems %}
+  <div class="flash error"><strong>Nothing can be moved yet:</strong>
+    <ul>{% for p in problems %}<li>{{ p }}</li>{% endfor %}</ul></div>
+{% endif %}
+{% if files %}
+<ul class="fix-results">
+  {% for f in files %}<li><div><code class="small">{{ f.path }}</code><div class="muted small">{{ f.size | filesize }} → <code>{{ f.destination | replace("/preview/", "/<date>/") }}</code></div></div></li>{% endfor %}
+</ul>
+<p class="muted small">{{ files | length }} {{ "file" if files | length == 1 else "files" }}, {{ total | filesize }}. {% if arr and not leftover %}{{ arr.name }} was asked just now, and still has no record of {{ "it" if files | length == 1 else "them" }}. {% endif %}The move is recorded in the audit log.</p>
+{% endif %}
+{% if copy_seconds >= 3 %}<p class="muted small">The trash folder is on a different mount from {{ "this file" if files | length == 1 else "these files" }}, so {{ "it" if files | length == 1 else "they" }} must be copied, then the original removed. That takes about {{ copy_seconds }} seconds for {{ total | filesize }}; keep this window open.</p>{% endif %}
+{% if not on %}<div class="flash warn">File changes are switched off. Turn them on under <a href="/settings/writes">Settings → Writes</a> first.</div>{% endif %}
+{% if not writable %}<div class="flash warn">Some folders are read-only for MediaWrangler: {{ readonly | join(", ") }}. See Settings → Writes.</div>{% endif %}
+<div class="row">
+  <button type="button" data-close>Cancel</button>
+  {% if files and not problems %}
+  <form hx-post="/fix/trash" hx-target="#fix-body" hx-disabled-elt="find button" class="inline">
+    <input type="hidden" name="group" value="{{ group.id }}"><input type="hidden" name="source" value="{{ arr.id if arr else 0 }}">
+    <input type="hidden" name="folder" value="{{ folder }}">{% if leftover %}<input type="hidden" name="leftover" value="true">{% endif %}
+    {% for f in files %}<input type="hidden" name="path" value="{{ f.path }}">{% endfor %}
+    <button type="submit" class="primary">Move {{ files | length }} {{ "file" if files | length == 1 else "files" }} to the trash</button>
+  </form>
+  {% endif %}
+</div>

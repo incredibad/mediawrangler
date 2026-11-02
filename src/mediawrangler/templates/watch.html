@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}Watch states{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+{% if not view %}
+<h1>Watch states</h1>
+  <div class="card"><p>No watch state yet. Sync Jellyfin or Silo from the <a href="/">overview</a>; users and their watch state are read with the library.</p></div>
+{% else %}
+<div class="pagehead">
+<h1>Watch states</h1>
+<form method="get" action="/watch" class="picker" data-person-form>
+  <input type="hidden" name="group" value="{{ current.id }}">
+  <input type="hidden" name="filter" value="{{ filter }}">
+  <input type="hidden" name="source" value="{{ source or '' }}">
+  <input type="hidden" name="q" value="{{ q }}">
+  <label><span>User</span>
+    <select name="user" aria-label="User">
+      {% for p in people %}<option value="{{ p.id }}" {% if p.id == person.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit">Show</button></noscript>
+</form>
+</div>
+<nav class="subnav">
+  {% for g in groups %}<a href="{{ link(group=g.id) }}" data-keep {% if g.id == current.id %}aria-current="page"{% endif %}>{{ g.name }}</a>{% endfor %}
+  {% if has_imports %}<a href="/watch/elsewhere?user={{ person.id }}">Not in any app</a>{% endif %}
+</nav>
+
+<section class="card">
+  {% if not view.columns %}
+    <p>No app's watch state is readable for {{ person.name }} in this group.</p>
+  {% else %}
+  {% set ref = view.columns[0].source %}
+  <div class="summary">
+    {% for col in view.columns %}{% set s = view.summaries[col.source.id] %}
+      <div class="summary-col summary-box">
+        <div class="summary-head">{{ dx.head(col.source) }}</div>
+        <div class="stats">
+          <div class="stat key"><span class="stat-label">Played</span>
+            <span class="stat-val">{{ "{:,}".format(s.played) }}</span></div>
+          <div class="stat"><span class="stat-label">Not played</span>
+            <span class="stat-val">{{ "{:,}".format([s.available - s.played - s.in_progress, 0] | max) }}</span></div>
+          <div class="stat"><span class="stat-label">Total</span>
+            <span class="stat-val">{{ "{:,}".format([s.available, s.played + s.in_progress] | max) }}</span></div>
+          <div class="stat"><span class="stat-label">In progress</span>
+            <span class="stat-val">{{ "{:,}".format(s.in_progress) }}</span></div>
+          <div class="stat"><span class="stat-label">Read</span>
+            <span class="stat-val">{{ col.user.watch_synced_at | localtime("%d %b %H:%M") }}</span></div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% for src, su in view.unreadable %}
+    <p class="flash warn small">{{ src.name }} has a user "{{ su.name }}" for {{ person.name }}, but its watch state can't be read with MediaWrangler's key{% if src.type == "silo" %} (Silo only lets a key read its own account's profiles){% endif %}.</p>
+  {% endfor %}
+</section>
+
+{% if view.columns | length > 0 %}
+<section class="card">
+  {% include "_filterbar.html" %}
+  <div class="table-wrap">
+  <table class="matrix striped" id="watch-table">
+    <thead><tr>
+      <th>Title</th>
+      {% for col in view.columns %}<th class="s{{ loop.index0 % 2 }}">{{ dx.app(col.source) }}</th>{% endfor %}
+      <th class="s{{ view.columns | length % 2 }}">{% call dx.tip("Apply from\nThe app whose watched status would be copied to the others: the one with the most played; Local, then the master, on a tie. Shown for every title with something played. Nothing is written yet.") %}Apply from{% endcall %}</th>
+    </tr></thead>
+    <tbody>
+    {% for row in view.rows %}
+      <tr data-flags="{{ row.flags | sort | join(' ') }}" data-search="{{ row.search }}" {% if row.canonical.id not in visible_ids %}hidden{% endif %}>
+        <td class="title"><span class="trunc" data-tip="{{ row.canonical.title }}{% if row.canonical.year %} ({{ row.canonical.year }}){% endif %}" data-tip-truncated>
+          {% if current.kind == "series" and row.canonical.id > 0 %}<a href="/watch/series?user={{ person.id }}&group={{ current.id }}&canonical={{ row.canonical.id }}"><strong>{{ row.canonical.title }}</strong></a>
+          {% else %}<strong>{{ row.canonical.title }}</strong>{% endif %}
+          {% if row.canonical.year %}<span class="muted">({{ row.canonical.year }})</span>{% endif %}
+        </span></td>
+        {% for col in view.columns %}{% set c = row.cells[col.source.id] %}{% set is_ref = col.source.id == ref.id %}
+          {% if current.kind == "series" %}
+            {% if not c.present %}<td class="cell s{{ loop.index0 % 2 }}"><span class="pad muted">not in app</span></td>
+            {% elif not c.available %}<td class="cell s{{ loop.index0 % 2 }}"><span class="pad muted">no episodes</span></td>
+            {% else %}
+              {% set pct = ((c.played * 20 / c.available) | round(0, 'floor') | int * 5) if c.played < c.available else 100 %}
+              {% if c.played and pct == 0 %}{% set pct = 5 %}{% endif %}
+              {% set state = "done" if c.played >= c.available else ("some" if c.played or c.in_progress else "none") %}
+              <td class="cell s{{ loop.index0 % 2 }}">
+                <div class="pbar {{ state }} w{{ pct }}"><div class="pad cellrow">
+                  <span>{% call dx.tip("Played in " ~ col.source.name ~ "\n" ~ c.played ~ " of " ~ c.available ~ " episodes played" ~ ("\n" ~ c.in_progress ~ " part-watched" if c.in_progress else "") ~ ("\nIncludes " ~ c.specials ~ " special" ~ ("" if c.specials == 1 else "s") if c.specials else "") ~ ("\n" ~ "{:,}".format(c.plays) ~ " plays recorded" if c.plays else "")) %}<strong>{{ c.played }}</strong><span class="muted">/{{ c.available }}</span>{% endcall %}</span>
+                  <span class="deltas">
+                  {% if c.missing %}{% call dx.tip("Fewer than " ~ ref.name ~ "\n" ~ c.missing ~ " played in " ~ ref.name ~ " but not here") %}<span class="delta bad">−{{ c.missing }}</span>{% endcall %}{% endif %}
+                  {% if c.extra %}{% call dx.tip("More than " ~ ref.name ~ "\n" ~ c.extra ~ " played here but not in " ~ ref.name) %}<span class="delta warn">+{{ c.extra }}</span>{% endcall %}{% endif %}
+                  {% if c.local_diff %}{% call dx.tip("Differs from Local\n" ~ c.local_diff ~ " episode" ~ ("" if c.local_diff == 1 else "s") ~ " played here or in Local, but not both") %}<span class="delta warn">≠L</span>{% endcall %}{% endif %}
+                  </span>
+                </div></div>
+              </td>
+            {% endif %}
+          {% else %}
+            {% if not c.present %}<td class="cell s{{ loop.index0 % 2 }}"><span class="pad muted">not in app</span></td>
+            {% else %}
+              {% set state = "done" if c.watch and c.watch.played else ("some" if c.watch and c.watch.in_progress else "none") %}
+              {% set mpct = 100 if state == "done" else ((((c.watch.position or 0) * 20 / c.watch.duration) | round(0, 'floor') | int * 5) if state == "some" and c.watch.duration else (50 if state == "some" else 0)) %}
+              {% if state == "some" and mpct == 0 %}{% set mpct = 5 %}{% endif %}
+              <td class="cell s{{ loop.index0 % 2 }}">
+                <div class="pbar {{ state }} w{{ mpct }}"><div class="pad cellrow">
+                  <span>
+                  {% if state == "done" %}{% call dx.tip("Played in " ~ col.source.name ~ (("\n" ~ c.watch.last_played_at | localtime("%d %b %Y")) if c.watch.last_played_at else "") ~ (("\n" ~ c.plays ~ " plays recorded") if c.plays > 1 else "")) %}<strong>Played</strong>{% endcall %}
+                  {% elif state == "some" %}{% call dx.tip("Part-watched in " ~ col.source.name ~ "\nStopped " ~ ((c.watch.position or 0) / 60) | round | int ~ " minutes in") %}<strong>{{ ((c.watch.position or 0) / 60) | round | int }} min in</strong>{% endcall %}
+                  {% else %}{% call dx.tip("Not played in " ~ col.source.name) %}<span class="muted">Unplayed</span>{% endcall %}{% endif %}
+                  </span>
+                  <span class="deltas">
+                  {% if c.missing %}{% call dx.tip("Fewer than " ~ ref.name ~ "\nPlayed in " ~ ref.name ~ " but not here") %}<span class="delta bad">−1</span>{% endcall %}{% endif %}
+                  {% if c.extra %}{% call dx.tip("More than " ~ ref.name ~ "\nPlayed here but not in " ~ ref.name) %}<span class="delta warn">+1</span>{% endcall %}{% endif %}
+                  {% if c.local_diff %}{% call dx.tip("Differs from Local\nPlayed here or in Local, but not both") %}<span class="delta warn">≠L</span>{% endcall %}{% endif %}
+                  </span>
+                </div></div>
+              </td>
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+        <td class="cell s{{ view.columns | length % 2 }}"><div class="pad">
+          {% set af = row.apply_from %}
+          {% if af %}
+            {% call dx.tip("Apply from " ~ af.column.source.name ~ "\n" ~ af.played ~ " of " ~ af.available ~ " " ~ ("episodes" if current.kind == "series" else "plays") ~ " played here" ~ (("\nNext best: " ~ af.second.source.name ~ " with " ~ af.second_played) if af.second else "") ~ "\nNothing is written yet.") %}{{ dx.name(af.column.source.id, af.column.source.name) }}{% endcall %}
+          {% else %}
+            {% call dx.tip("Nothing to apply\nNothing has been played.") %}<span class="muted">—</span>{% endcall %}
+          {% endif %}
+        </div></td>
+      </tr>
+    {% endfor %}
+      {% set colspan = view.columns | length + 2 %}{% include "_emptyrow.html" %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/table-filter.js?v={{ version }}" defer></script>{% endblock %}

@@ -1,0 +1,49 @@
+{% import "_macros.html" as dx with context %}
+{% set mr = (source_rows | selectattr("source.id", "equalto", master.id) | first) if master else none %}
+<div id="sync-status" {% if any_running %}hx-get="/sync/status" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}>
+  <div class="table-wrap">
+  <table class="matrix striped">
+    <thead><tr><th>Connector</th><th class="s0">Series</th><th class="s1">Movies</th><th class="s0">Episodes</th><th class="s1">Files</th><th class="s0">Last sync</th><th class="s1">Next sync</th><th></th></tr></thead>
+    <tbody>
+    {% for r in source_rows %}
+      {% set s = r.source %}{% set run = r.last_run %}
+      <tr>
+        <td><a href="/settings/connectors/{{ s.id }}">{{ dx.name(s.id, s.name) }}</a>
+          <span class="tag">{{ connector_label(s.type) }}</span></td>
+        {% if r.syncable %}
+          {% set dash = '<span class="muted">—</span>' | safe %}
+          {# Only media servers are comparable here: arrs also track titles they have no files for,
+             and Sportarr's "series" are leagues. Arrs are compared on Physical media. #}
+          {% set rel = mr and r.source.id != master.id and types[r.source.type].role == "media_server" %}
+          <td class="s0">{{ "{:,}".format(r.series) if r.series else dash }}{% if rel %}{{ dx.delta_if(r.series, mr.series, master.name) }}{% endif %}</td>
+          <td class="s1">{{ "{:,}".format(r.movies) if r.movies else dash }}{% if rel %}{{ dx.delta_if(r.movies, mr.movies, master.name) }}{% endif %}</td>
+          <td class="s0">{{ "{:,}".format(r.episodes) if r.episodes else dash }}{% if rel %}{{ dx.delta_if(r.episodes, mr.episodes, master.name) }}{% endif %}</td>
+          <td class="s1">{{ "{:,}".format(r.files) if r.files else dash }}</td>
+        {% else %}
+          <td colspan="4" class="s0 muted">Read in a later release</td>
+        {% endif %}
+        <td class="s0">
+          {% if not run %}<span class="muted">Never</span>
+          {% elif run.status == "running" %}<span class="status unknown">Syncing</span> <span class="muted">{{ run.progress or "" }}</span>
+          {% elif run.status == "ok" %}<span class="status ok">OK</span> <span class="muted">{{ run.finished_at | localtime }}{% if run.stats.seconds %} · {{ run.stats.seconds }}s{% endif %}{% if run.stats.added or run.stats.removed %} · +{{ run.stats.added }} / −{{ run.stats.removed }}{% endif %}</span>
+          {% else %}<span class="status bad" title="{{ run.error or '' }}">Failed</span> <span class="muted truncate">{{ (run.error or "")[:120] }}</span>{% endif %}
+        </td>
+        <td class="s1">
+          {% if r.next and not (run and run.status == "running") %}<span class="muted">{{ "Watch-state sync" if r.next[0] == "watch" else "Full sync" }} {{ "as soon as possible" if r.next[1].year < 2 else (r.next[1] | localtime("%d %b %H:%M")) }}</span>{% endif %}
+        </td>
+        <td>
+          {% if r.syncable and s.enabled %}
+          <form hx-post="/sync/{{ s.id }}" hx-target="#sync-status" hx-swap="outerHTML" method="post" action="/sync/{{ s.id }}" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" {% if run and run.status == "running" %}disabled{% endif %}>Sync now</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% if any_running %}<p class="muted small">Syncing… this page updates by itself. Reload when it finishes to refresh the summary.</p>{% endif %}
+  {% if request.headers.get("hx-request") %}<div id="sync-all" hx-swap-oob="true">{% include "_sync_all.html" %}</div>{% endif %}
+</div>

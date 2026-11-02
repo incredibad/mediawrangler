@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}Metadata presence{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+<h1>Metadata presence</h1>
+{% if not view %}
+  <div class="card"><p>No libraries yet. Sync your master media server first; its libraries are what the others are compared against.</p>
+    <a class="button" href="/">Go to the overview</a></div>
+{% else %}
+<nav class="subnav">
+  {% for g in groups %}<a href="{{ link(group=g.id) }}" data-keep {% if g.id == current.id %}aria-current="page"{% endif %}>{{ g.name }}</a>{% endfor %}
+</nav>
+
+{% set all_cols = view.columns + view.arrs %}{% set arr_ids = view.arrs | map(attribute="id") | list %}
+<section class="card">
+  <div class="summary">
+    {% set ms = view.summaries[view.master_id] if view.master_id else none %}
+    {% set master_name = (view.columns | selectattr("id", "equalto", view.master_id) | first).name if view.master_id else "the master" %}
+    {% for col in all_cols %}{% set s = view.summaries[col.id] %}
+      <div class="summary-col summary-box">
+        <div class="summary-head">{{ dx.head(col) }}</div>
+        <div class="stats">
+          {% call dx.stat("Tracked" if col.id in arr_ids else "Total", true) %}{{ "{:,}".format(s.total) }}{% if ms and col.id != view.master_id and col.id not in arr_ids %} {{ dx.delta(s.total, ms.total, master_name) }}{% endif %}{% endcall %}
+          {% if col.id in arr_ids %}
+          {% elif col.id != view.master_id %}
+            {% call dx.stat("Missing") %}{{ dx.count_link(s.missing, "−", link(filter='missing', source=col.id), "missing", col.id) }}{% endcall %}
+            {% call dx.stat("Unconfirmed") %}{{ dx.count_link(s.low, "", link(filter='low'), "low") }}{% endcall %}
+            {% call dx.stat("Not in master") %}{{ dx.count_link(s.extra, "+", link(filter='not_in_master'), "not_in_master") }}{% endcall %}
+            {% if current.kind == "series" %}
+              {% call dx.stat("Episode diffs") %}{{ dx.count_link(s.episode_mismatch, "", link(filter='episodes'), "episodes") }}{% endcall %}
+              {% call dx.stat("Specials diffs") %}{{ dx.count_link(s.specials_mismatch, "", link(filter='specials'), "specials") }}{% endcall %}
+            {% endif %}
+          {% elif s.duplicates %}
+            {% call dx.stat("Duplicates") %}{{ dx.count_link(s.duplicates, "", link(filter='duplicate'), "duplicate") }}{% endcall %}
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  {% if view.columns | length < 2 %}
+    <p class="flash warn">Only one app is mapped to this group, so there's nothing to compare. <a href="/settings/groups">Map another app's library</a>.</p>
+  {% endif %}
+</section>
+
+<section class="card">
+  {% include "_filterbar.html" %}
+
+  <div class="table-wrap">
+  <table class="matrix striped" id="presence-table">
+    <thead><tr><th>Title</th>{% for col in all_cols %}<th class="s{{ loop.index0 % 2 }}">{{ dx.app(col) }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for row in view.rows %}
+      <tr data-flags="{{ row.flags | sort | join(' ') }}" data-search="{{ row.search }}" {% if row.canonical.id not in visible_ids %}hidden{% endif %}>
+        <td class="title"><div class="titleline">
+          <span class="trunc" data-tip="{{ row.canonical.title }}{% if row.canonical.year %} ({{ row.canonical.year }}){% endif %}" data-tip-truncated><strong>{{ row.canonical.title }}</strong>{% if row.canonical.year %} <span class="muted">({{ row.canonical.year }})</span>{% endif %}</span>
+          {% set a = row %}{% include "_ids.html" with context %}
+          {% if "mismatch" in row.flags %}<span class="tag warn">possible mismatch</span>{% endif %}
+          {% if "duplicate" in row.flags %}<span class="tag warn">duplicate</span>{% endif %}
+          {% set issue = row.flags | select("in", ["mismatch", "low", "not_in_master"]) | list %}
+          {% set file_issue = row.flags | select("in", ["episodes", "specials", "duplicate"]) | list %}
+          {% set fixes %}
+            {% for col in all_cols %}{% set cell = row.cells[col.id] %}
+              {% if cell.state in ("present", "low") %}{% for it in cell.items %}
+                {% set can_change = issue and col.id in fixable_sources %}
+                {% if can_change or it.match_confidence == "low" %}
+                <div class="fix-group">{{ col.name }}{% if cell.items | length > 1 %}: “{{ it.title }}”{% endif %}</div>
+                {% if can_change %}
+                <form hx-get="/fix/{{ it.id }}/search" hx-target="#fix-body">
+                  <button type="submit">Change which {{ "film" if current.kind == "movie" else "show" }} {{ col.name }} thinks this is…<span class="hint">Search {{ col.name }} and pick the right one.</span></button>
+                </form>
+                {% endif %}
+                {% if it.match_confidence == "low" %}
+                {% for decision, label, hint in [("confirm", "Tell MediaWrangler these are the same show", "Nothing changes in the apps."), ("reject", "Tell MediaWrangler these are different shows", "They won't be paired again.")] %}
+                <form method="post" action="/presence/decide">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                  <input type="hidden" name="item_id" value="{{ it.id }}">
+                  <input type="hidden" name="back" value="{{ here }}">
+                  <input type="hidden" name="decision" value="{{ decision }}">
+                  <button type="submit">{{ label }}<span class="hint">{{ hint }}</span></button>
+                </form>
+                {% endfor %}
+                {% endif %}
+                {% endif %}
+              {% endfor %}{% endif %}
+              {% for it in cell.items if it.id in forgettable %}
+                <div class="fix-group">{{ col.name }}</div>
+                <form hx-post="/fix/forget" hx-target="#fix-body">
+                  <input type="hidden" name="item" value="{{ it.id }}">
+                  <button type="submit">Ask {{ col.name }} to drop this show<span class="hint">Its folder is gone from the share. Takes about a minute.</span></button>
+                </form>
+              {% endfor %}
+            {% endfor %}
+            {% if file_issue %}
+            <div class="fix-group">Files</div>
+            <a href="/physical?group={{ current.id }}&filter=all&q={{ row.canonical.title | urlencode }}">Files problem: compare on the Physical page<span class="hint">Missing specials, duplicates, extras.</span></a>
+            {% endif %}
+          {% endset %}
+          {% if fixes | trim %}<details class="fix-menu"><summary>Fix ▾</summary><div class="fix-items">{{ fixes }}</div></details>{% endif %}
+        </div></td>
+        {% for col in all_cols %}{% set cell = row.cells[col.id] %}
+          <td class="cell s{{ loop.index0 % 2 }} {{ cell.state }}"><div class="pad">
+            {% if cell.state == "tracked" %}
+              <span class="status ok">Tracked</span>
+            {% elif cell.state == "untracked" %}
+              {% if cell.look_alike %}
+                {% set tips = [] %}
+                {% for la in cell.look_alike %}{% set ids = [] %}{% for t in ["tvdb", "tmdb", "imdb"] %}{% if la[t] %}{% set _ = ids.append(t ~ " " ~ la[t]) %}{% endif %}{% endfor %}{% set _ = tips.append(col.name ~ " has “" ~ la.title ~ "” with other IDs (" ~ (ids | join(", ")) ~ "): probably the same show matched wrongly") %}{% endfor %}
+                <span class="warn-text" data-tip="{{ tips | join('; ') }}">Not tracked ⚠</span>
+              {% else %}
+                <span class="muted">Not tracked</span>
+              {% endif %}
+            {% elif cell.state == "missing" %}
+              <span class="status bad">{{ "Not in master" if col.id == view.master_id else "Missing" }}</span>
+            {% else %}
+              {% if cell.state == "low" %}<span class="status unknown" title="Matched on title and year only">Unconfirmed</span>{% else %}<span class="status ok">Present</span>{% endif %}
+              {% if cell.episodes is not none %}
+                <div class="small">{{ cell.episodes }} ep
+                  {% if cell.delta %}<span class="delta {{ 'bad' if cell.delta < 0 else 'warn' }}">{{ "%+d" % cell.delta }}</span>{% endif %}
+                  {% if cell.specials or cell.specials_delta %} · {{ cell.specials }} sp{% if cell.specials_delta %}<span class="delta warn">{{ "%+d" % cell.specials_delta }}</span>{% endif %}{% endif %}</div>
+              {% endif %}
+              {% set issue = row.flags | select("in", ["mismatch", "low", "not_in_master"]) | list %}
+              {% for it in cell.items %}
+                {% if it.match_confidence == "low" %}
+                  <div class="small muted">as “{{ it.title }}”{% if it.year %} ({{ it.year }}){% endif %}</div>
+                {% elif it.source_status == "unmatched" %}
+                  <div class="small muted">unmatched in {{ col.name }}</div>
+                {% endif %}
+              {% endfor %}
+            {% endif %}
+          </div></td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    {% set colspan = all_cols | length + 1 %}{% include "_emptyrow.html" %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/table-filter.js?v={{ version }}" defer></script>{% endblock %}

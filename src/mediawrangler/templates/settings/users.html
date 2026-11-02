@@ -1,0 +1,52 @@
+{% extends "settings/_layout.html" %}
+{% block title %}Users{% endblock %}
+{% block settings %}
+<section class="card">
+  <h2>Users</h2>
+  <p class="muted">Each person links to their user in every app, matched by name when first seen. Change a link if the names differ.
+    Watch state is read for every linked user MediaWrangler's keys can read. Where history is written to is set under <a href="/settings/writes">Writes</a>.</p>
+  {% if not people %}<p>No users yet. Sync Jellyfin or Silo from the <a href="/">overview</a>.</p>{% endif %}
+  <table>
+    <thead><tr><th>Person</th><th>App users</th></tr></thead>
+    <tbody>
+    {% for p in people %}
+      <tr>
+        <td><strong>{{ p.name }}</strong></td>
+        <td>
+          {% for su, src in by_person.get(p.id, []) %}
+            {% set c = counts.get(su.id, (0, 0)) %}
+            <form method="post" action="/settings/users/link/{{ su.id }}" class="row tight user-link">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <span class="tag">{{ src.name }}</span> {{ su.name }}
+              {% if su.watch_readable %}<span class="small muted">{{ "{:,}".format(c[0]) }} played{% if c[1] %}, {{ c[1] }} in progress{% endif %}</span>
+              {% else %}<span class="small muted" title="Silo only lets a key read its own account's profiles">watch state not readable</span>{% endif %}
+              <select name="app_user_id" aria-label="Person for {{ src.name }} {{ su.name }}">
+                {% for q in people %}<option value="{{ q.id }}" {% if q.id == p.id %}selected{% endif %}>{{ q.name }}</option>{% endfor %}
+                <option value="">— nobody —</option>
+              </select>
+              <button type="submit" class="small-btn">Move</button>
+            </form>
+          {% endfor %}
+        </td>
+      </tr>
+    {% endfor %}
+    {% if by_person.get(None) %}
+      <tr><td class="muted">Not linked</td><td>
+        {% for su, src in by_person.get(None) %}
+          <form method="post" action="/settings/users/link/{{ su.id }}" class="row tight user-link">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <span class="tag">{{ src.name }}</span> {{ su.name }}
+            <select name="app_user_id">
+              <option value="">— nobody —</option>
+              {% for q in people %}<option value="{{ q.id }}">{{ q.name }}</option>{% endfor %}
+            </select>
+            <button type="submit" class="small-btn">Link</button>
+          </form>
+        {% endfor %}
+      </td></tr>
+    {% endif %}
+    </tbody>
+  </table>
+</section>
+{% include "settings/_accounts.html" %}
+{% endblock %}

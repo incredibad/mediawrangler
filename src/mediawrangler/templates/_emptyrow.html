@@ -1,0 +1,7 @@
+{# Shown by the browser when the filter matches nothing. Needs: colspan, agree_text, agree_empty, visible_count #}
+<tr class="js-empty" {% if visible_count %}hidden{% endif %}>
+  <td colspan="{{ colspan }}" class="muted">
+    <span data-when="agree" {% if not agree_empty %}hidden{% endif %}>{{ agree_text }}</span>
+    <span data-when="none" {% if agree_empty %}hidden{% endif %}>Nothing matches.</span>
+  </td>
+</tr>

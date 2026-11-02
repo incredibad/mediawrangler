@@ -1,0 +1,49 @@
+<div id="accounts">
+<section class="card">
+  <h2>Accounts</h2>
+  <p class="muted">A person who has a user in one app but not another. Switch one on to add it to the dry run below; nothing is created until you confirm (Jellyfin needs a temporary password typed for it). Passwords are never copied from an app, and the ones you type are sent once and not kept. For Silo you can leave the password blank: the person gets a one-time link to set their own. The new user can open the libraries that match the ones the person can open elsewhere, and is asked to change the password at first sign-in. History reaches it through the switch for that app under <a href="/settings/writes">Writes</a>.</p>
+  {% if results %}
+  <ul>
+    {% for r in results %}<li>{% if r.ok %}<span class="tag ok">Created</span>{% else %}<span class="tag bad">Not created</span>{% endif %} {{ r.account.person_name }} in {{ r.account.source_name }}{% if r.detail %} <span class="muted">{{ r.detail }}</span>{% endif %}
+      {% if r.link %}<div>Send {{ r.account.person_name }} this link to set their own password (shown once, not kept{% if r.expires %}; works until {{ r.expires }}{% endif %}): <code>{{ r.link }}</code></div>{% endif %}
+      {% for n in r.notes %}<div class="muted small">{{ n }}</div>{% endfor %}
+    </li>{% endfor %}
+  </ul>
+  {% if results | selectattr("ok") | list %}<p class="muted">Silo accounts get a key made for them automatically, so their watch state can be read and written straight away.</p>{% endif %}
+  {% endif %}
+  {% if not gaps %}<p>Everyone has a user in every app that can create one.</p>{% else %}
+  <table class="matrix striped">
+    <thead><tr><th>Person</th><th>Missing in</th><th>Create</th></tr></thead>
+    <tbody>
+    {% for g in gaps %}
+      <tr>
+        <td class="title">{{ g.person.name }}</td>
+        <td>{{ g.source.name }}</td>
+        <td><label class="switch"><input type="checkbox" name="on" aria-label="Create {{ g.person.name }} in {{ g.source.name }}" {% if g.on %}checked{% endif %} hx-post="/settings/users/account/{{ g.person.id }}/{{ g.source.id }}" hx-trigger="change" hx-target="#accounts" hx-swap="outerHTML"></label></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+  {% if planned %}
+  <h3>Dry run</h3>
+  <form method="post" action="/settings/users/accounts/create" hx-post="/settings/users/accounts/create" hx-target="#accounts" hx-swap="outerHTML">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <table class="matrix striped">
+      <thead><tr><th>Person</th><th>In</th><th>Libraries it may open</th><th>Temporary password</th></tr></thead>
+      <tbody>
+      {% for a in planned %}
+        <tr>
+          <td class="title">{{ a.person_name }}</td>
+          <td>{{ a.source_name }} <span class="muted">(user as in {{ a.from_name }})</span></td>
+          <td>{% if a.blocked %}<span class="muted">{{ a.blocked }}</span>{% elif a.library_ids is none %}the app's default{% else %}{{ a.libraries | join(", ") or "none match" }}{% endif %}</td>
+          <td>{% if not a.blocked %}<input type="password" name="pw_{{ a.person_id }}_{{ a.source_id }}" autocomplete="new-password" {% if a.source_type == "silo" %}placeholder="blank = set-password link"{% else %}minlength="8" required{% endif %} aria-label="Temporary password for {{ a.person_name }} in {{ a.source_name }}">{% endif %}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    <button type="submit">Create these accounts</button>
+  </form>
+  {% endif %}
+</section>
+</div>

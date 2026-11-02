@@ -1,0 +1,24 @@
+# Secrets and runtime data
+.env
+*.key
+secrets/
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/
+
+# Editors
+.vscode/
+.idea/
+samples/
+plugins/*/dist/
+

@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h1>Settings</h1>
+<nav class="subnav">
+  {% for href, label in [("/settings/connectors", "Connectors"), ("/settings/groups", "Libraries"), ("/settings/users", "Users"), ("/settings/writes", "Writes"), ("/settings/backups", "Backups"), ("/settings/trash", "Trash"), ("/settings/security", "Security"), ("/settings/api-keys", "API keys")] %}
+    <a href="{{ href }}" {% if path.startswith(href) %}aria-current="page"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>
+{% block settings %}{% endblock %}
+{% endblock %}

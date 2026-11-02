@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Two-factor authentication{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Protect your account with two-factor authentication?</h1>
+  <p>
+    If MediaWrangler will be reachable from the internet, turn on two-factor authentication (TOTP).
+    It holds API keys for all your media apps, so a leaked password alone shouldn't be enough to get in.
+  </p>
+  <p class="muted">
+    On a LAN-only install you can skip this. You can turn it on any time under Settings → Security.
+  </p>
+  <div class="actions">
+    <a class="button primary" href="/settings/security/totp">Set up two-factor now</a>
+    <a class="button" href="/">Skip for now</a>
+  </div>
+</div>
+{% endblock %}

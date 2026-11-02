@@ -1,0 +1,12 @@
+{# One row like a player bar, polled: quickly while anything is queued, slowly otherwise. The audit log refreshes with it. #}
+{% set run = status.run %}
+<div id="writes-queue" class="queue-inline" hx-get="/settings/writes/status" hx-trigger="every {{ 1 if status.pending else 2 }}s" hx-swap="outerHTML">
+  {% if not enabled %}<span class="status off queue-state">Off</span>
+  {% elif paused %}<span class="status unknown queue-state">Paused</span>
+  {% elif status.pending %}<span class="status ok queue-state">Running</span>
+  {% elif run %}<span class="status ok queue-state">Done</span>
+  {% else %}<span class="status off queue-state">Idle</span>{% endif %}
+  <progress class="queue-bar" max="{{ run.total if run else 1 }}" value="{{ run.done if run else 0 }}"></progress>
+  <span class="queue-count">{% if run %}{{ "{:,}".format(run.done) }} / {{ "{:,}".format(run.total) }}{% else %}—{% endif %}</span>
+  {% if status.failed %}<span class="status bad" title="Failed writes retry after an hour">{{ "{:,}".format(status.failed) }} failed</span>{% endif %}
+</div>

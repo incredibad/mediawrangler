@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="htmx-config" content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false}'>
+  <title>{% block title %}MediaWrangler{% endblock %} · MediaWrangler</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ version }}">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <script src="/static/vendor/htmx.min.js?v=2.0.4" defer></script>
+  <script src="/static/tooltip.js?v={{ version }}" defer></script>
+  <script src="/static/confirm.js?v={{ version }}" defer></script>
+  <script src="/static/fix.js?v={{ version }}" defer></script>
+  <script src="/static/check-all.js?v={{ version }}" defer></script>
+  <script src="/static/select-filter.js?v={{ version }}" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}'>
+{% if user %}
+  <header class="topbar">
+    <a class="brand" href="/"><img src="/static/icon.svg" alt="" width="22" height="22"> MediaWrangler</a>
+    <nav class="mainnav">
+      {% set items = [("/", "Overview"), ("/presence", "Metadata"), ("/physical", "Physical"), ("/watch", "Watched"), ("/activity", "Activity"), ("/settings", "Settings")] %}
+      {% for href, label in items %}
+        <a href="{{ href }}" {% if (href == "/" and path == "/") or (href != "/" and path.startswith(href)) %}aria-current="page"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+    <form method="post" action="/logout" class="logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit" class="link">Sign out {{ user.username }}</button>
+    </form>
+  </header>
+  {% if show_totp_banner %}
+    <div class="banner warn">
+      Two-factor authentication is off. If MediaWrangler is reachable from the internet,
+      <a href="/settings/security/totp">turn it on</a>.
+    </div>
+  {% endif %}
+{% endif %}
+<main class="{% block main_class %}page{% endblock %}">
+  {% if flash %}<div class="flash {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+<dialog id="fix-dialog" class="fix-dialog"><div id="fix-body"></div></dialog>
+{% if user %}<div id="toasts" class="toasts" hx-get="/fix/toasts" hx-trigger="load, every 4s, mw-toast from:body" hx-swap="innerHTML" aria-live="polite"></div>{% endif %}
+<footer class="footer">MediaWrangler {{ version }}</footer>
+{% block scripts %}{% endblock %}
+</body>
+</html>

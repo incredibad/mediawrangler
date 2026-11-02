@@ -1,0 +1,42 @@
+{% extends "settings/_layout.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}Connectors{% endblock %}
+{% block settings %}
+<section class="card">
+  <div class="card-head">
+    <h2>Connectors</h2>
+    <div class="head-actions">
+      {% if servers %}
+      <form method="post" action="/settings/connectors/master" class="row tight">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label class="inline-label">{% call dx.tip("The master media server\nThe server everything else is compared against.\nIts libraries become the libraries on the Libraries page, and its titles define the shows and films.\n'Missing' or 'not in master' means compared with it.\nNew accounts in other apps are copied from its users, with the same library access.\nIt does not decide watch status: MediaWrangler keeps that itself.") %}Select master:{% endcall %}
+          <select name="master_id" data-autosubmit aria-label="Master media server">
+            {% for m in servers %}<option value="{{ m.id }}" {% if master and m.id == master.id %}selected{% endif %}>{{ m.name }}</option>{% endfor %}
+          </select>
+        </label>
+      </form>
+      {% endif %}
+      <a class="button primary" href="/settings/connectors/new">Add connector</a>
+    </div>
+  </div>
+  {% if sources %}
+  <table>
+    <thead><tr><th>Name</th><th>Type</th><th>URL</th><th>Status</th><th>Last test</th></tr></thead>
+    <tbody>
+    {% for s in sources %}
+      <tr>
+        <td><a href="/settings/connectors/{{ s.id }}">{{ dx.name(s.id, s.name) }}</a></td>
+        <td>{{ types[s.type].display_name if s.type in types else s.type }}</td>
+        <td><code>{{ s.base_url }}</code></td>
+        <td>{% include "settings/_status.html" %}</td>
+        <td class="muted">{{ s.last_test_at | localtime }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+    <p class="muted">No connectors yet. Add one for each app instance, e.g. one each for Sonarr, Radarr and Radarr 4K.</p>
+  {% endif %}
+</section>
+{% include "settings/_imports.html" %}
+{% endblock %}

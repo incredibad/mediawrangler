@@ -1,0 +1,53 @@
+<div id="writes-controls">
+<section class="card">
+  <h2>Writing to the apps</h2>
+  <p class="muted">When switched on for a user in an app, whatever Local says is played is marked played in that app, and an unwatch MediaWrangler sees happen is passed on. Changes are queued and sent straight away; nothing waits for approval. Everything is off by default, and every change here saves as you make it.</p>
+  <div class="head-actions">
+    <label class="switch"><input type="checkbox" name="on" {% if enabled %}checked{% endif %} hx-post="/settings/writes/switch/enabled" hx-trigger="change" hx-target="#writes-controls" hx-swap="outerHTML"> Writing</label>
+    <label class="switch"><input type="checkbox" name="on" {% if paused %}checked{% endif %} hx-post="/settings/writes/switch/paused" hx-trigger="change" hx-target="#writes-controls" hx-swap="outerHTML"> Paused</label>
+    {% include "settings/_writes_queue.html" %}
+  </div>
+</section>
+
+<section class="card">
+  <h2>Changing files</h2>
+  <p class="muted">Off by default. When on, you can move orphaned files (files an arr tracks the folder for but has no record of) to a trash folder from a folder's page on Physical. Nothing is deleted outright: files sit in <code>.mediawrangler-trash</code> inside their library folder, can be put back from <a href="/settings/trash">Trash</a>, and are deleted for good after 30 days. Each move re-checks that the file is a video inside a library folder, is still there, and that the arr still has no record of it, and is recorded in the audit log.</p>
+  <div class="head-actions">
+    <label class="switch"><input type="checkbox" name="on" {% if files_on %}checked{% endif %} hx-post="/settings/writes/switch/files" hx-trigger="change" hx-target="#writes-controls" hx-swap="outerHTML"> File changes</label>
+    <span class="status {{ 'ok' if share_writable else 'unknown' }}">{{ "Library folders and trash are writable" if share_writable else "Read-only: " ~ (readonly | join(", ")) }}</span>
+  </div>
+  <form method="post" action="/settings/writes/trash-dir" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="inline-label">Trash folder <input type="text" name="trash_dir" value="{{ trash_dir }}" size="36" placeholder="empty: inside each library folder" spellcheck="false"></label>
+    <button type="submit">Save</button>
+  </form>
+  {% if trash_problem %}<div class="flash bad">{{ trash_problem }}</div>{% endif %}
+  <p class="muted small">Leave it empty and each file goes to a <code>.mediawrangler-trash</code> folder inside its own library folder. Or give one folder for everything (a full path as MediaWrangler sees it, for example <code>/media/.trash</code>; it must exist, be writable and sit outside every library folder; start the name with a dot so it is never read as a library). Files are sorted there by date and library. On the same disk a move is instant; on another disk the file is copied, checked, then removed.</p>
+  {% if not share_writable %}<p class="muted small">To allow it, mount those folders read-write in <code>compose.yaml</code> and run <code>docker compose up -d</code>; leave the rest of the share read-only.</p>{% endif %}
+</section>
+
+<section class="card">
+  <h2>Users</h2>
+  <table class="matrix striped">
+    <thead><tr><th><label class="switch"><input type="checkbox" name="on" aria-label="All users in all apps" {% if all_on %}checked{% endif %} hx-post="/settings/writes/all" hx-trigger="change" hx-target="#writes-controls" hx-swap="outerHTML"> All users</label></th>{% for sid, name in servers %}<th>{{ name }}</th>{% endfor %}<th>Only these shows <span class="muted">(one per line; empty means all)</span></th><th></th></tr></thead>
+    <tbody>
+    {% for row in people %}{% set p = row.p %}
+      <tr>
+        <td class="title">{{ p.name }}</td>
+        {% for sid, name in servers %}
+        <td>
+          {% set app = row.apps | selectattr("id", "equalto", sid) | first %}
+          {% if app %}<label class="switch"><input type="checkbox" name="on" aria-label="Write {{ p.name }}'s history to {{ name }}" {% if app.on %}checked{% endif %} hx-post="/settings/writes/user/{{ p.id }}/app/{{ sid }}" hx-trigger="change" hx-target="#writes-controls" hx-swap="outerHTML"></label>{% else %}<span class="muted">—</span>{% endif %}
+        </td>
+        {% endfor %}
+        <td>
+          <textarea class="show-filter" name="title_filter" rows="1" spellcheck="false" placeholder="All shows" aria-label="Shows to write for {{ p.name }}"
+            hx-post="/settings/writes/user/{{ p.id }}/filter" hx-trigger="input changed delay:700ms" hx-swap="none">{{ p.writes_filter or "" }}</textarea>
+        </td>
+        <td><a class="button" href="/settings/writes?preview={{ p.id }}">Preview</a></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+</div>

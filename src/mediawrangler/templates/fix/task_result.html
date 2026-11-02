@@ -1,0 +1,9 @@
+<div class="fix-head">
+  <h2>{{ "Asked" if ok else "Not done" }}</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<div class="flash {{ 'ok' if ok else 'error' }}">{{ message }}</div>
+<div class="row">
+  <button type="button" class="primary" data-close {% if ok %}data-reload{% endif %}>Close</button>
+  {% if ok %}<a href="/activity?tab=audit">See it in the audit log</a>{% endif %}
+</div>

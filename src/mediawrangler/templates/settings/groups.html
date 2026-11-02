@@ -1,0 +1,117 @@
+{% extends "settings/_layout.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}Libraries{% endblock %}
+{% block settings %}
+<section class="card">
+  <h2>Libraries</h2>
+  <p class="muted">Each library below is one body of content, such as TV or Movies, and lists where every app keeps it. The names come from {% if master %}{{ master.name }}{% else %}the master{% endif %}, the master, when it is first synced; the other apps' libraries are matched to them by folder name.
+    Comparisons only look inside one library. The order here is the order of the library tabs on every page and of the tables on the overview; use Move up and Move down to change it. The <strong>Treated as</strong> column is the one folder every app's path is turned into so they can be compared: the media share's folder is the reference, and each app's folder is matched to it.</p>
+  {% if not sections %}<p>No libraries yet. Sync the master from the <a href="/">overview</a>.</p>{% endif %}
+</section>
+
+{% for sec in sections %}{% set g = sec.group %}
+<section class="card" id="group-{{ g.id }}">
+  <h2>{{ g.name }} <span class="tag">{{ "TV" if g.kind == "series" else "Movies" }}</span>{% if not g.presence_enabled %} <span class="tag">Not compared by title</span>{% endif %}
+    {% if sections | length > 1 %}<form method="post" action="/settings/groups/{{ g.id }}/move" class="inline order">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      {% if not loop.first %}<button type="submit" name="direction" value="up" class="link" aria-label="Move {{ g.name }} up">↑ Move up</button>{% endif %}
+      {% if not loop.last %}<button type="submit" name="direction" value="down" class="link" aria-label="Move {{ g.name }} down">↓ Move down</button>{% endif %}
+    </form>{% endif %}</h2>
+  {% if not sec.has_reference %}
+    <p class="flash warn">No media share folder is set for {{ g.name }}, so nothing here can be compared yet. {% if sec.rows | selectattr("role", "equalto", "disk") | selectattr("choices") | list %}Choose it in the Media share row.{% else %}Mount the share and sync it.{% endif %}</p>
+  {% endif %}
+  <table class="matrix">
+    <thead><tr><th>App</th><th>Library in that app</th><th>Folder it reports</th><th>Treated as</th><th>Status</th></tr></thead>
+    <tbody>
+    {% for row in sec.rows %}
+      {% if row.libraries %}
+        {% for lr in row.libraries %}
+        <tr>
+          <td>{% if loop.first %}{{ dx.name(row.source.id, row.source.name) }}{% endif %}</td>
+          <td>{{ lr.library.name }}</td>
+          <td class="small">{% for p, _m in lr.paths %}<code>{{ p }}</code>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+          <td class="small">{% if row.role == "disk" %}<span class="muted">the reference</span>{% else %}{% for p, m in lr.paths %}{% if m %}<code>{{ m }}</code>{% else %}<span class="muted">no rule</span>{% endif %}{% if not loop.last %}<br>{% endif %}{% endfor %}{% endif %}</td>
+          <td class="nowrap">
+            {% if row.status == "ok" %}<span class="status ok">OK</span>
+            {% elif row.status == "no_reference" %}<span class="status unknown" data-tip="There is no media share folder for this library to turn this app's folder into">No reference</span>
+            {% else %}<span class="status unknown" data-tip="This app's path map has no rule for this folder; edit it on the connector page">No rule</span>{% endif %}
+            <form method="post" action="/settings/groups/library/{{ lr.library.id }}" class="inline" data-confirm="Take {{ lr.library.name }} out of {{ g.name }}? It will no longer be compared with the other apps.">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <input type="hidden" name="group_id" value="">
+              <button type="submit" class="link">Leave out</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      {% else %}
+        <tr>
+          <td>{{ dx.name(row.source.id, row.source.name) }}</td>
+          <td colspan="3">
+            <form method="post" action="/settings/groups/{{ g.id }}/add" class="row tight">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <select name="library_id" aria-label="Library in {{ row.source.name }} for {{ g.name }}">
+                {% for lib in row.choices %}<option value="{{ lib.id }}">{{ lib.name }}{% if lib.paths %} ({{ lib.paths[0] }}){% endif %}</option>{% endfor %}
+              </select>
+              <button type="submit">Set</button>
+            </form>
+          </td>
+          <td><span class="status unknown">Not set</span></td>
+        </tr>
+      {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  <details>
+    <summary>Options</summary>
+    <form method="post" action="/settings/groups/{{ g.id }}" class="stack options">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Name
+        <input name="name" value="{{ g.name }}" maxlength="64" required>
+        <span class="hint">How this library is named across MediaWrangler. It starts as the name of the library in {% if master %}{{ master.name }}{% else %}the master{% endif %}.</span>
+      </label>
+      <div>
+        <label class="check"><input type="checkbox" name="presence_enabled" {% if g.presence_enabled %}checked{% endif %}> Compare titles between apps</label>
+        <span class="hint">Lists this library on the Presence page, showing which titles each app has and which are missing. Turn it off for content that has no standard IDs to match on, such as sport.</span>
+      </div>
+      <label>Where to list imported titles that none of your apps has
+        <select name="import_landing">
+          <option value="" {% if not g.import_landing %}selected{% endif %}>Automatic ({{ landings[guess[g.id]] }})</option>
+          {% for key, label in landings.items() %}{% if key in ("none", "movie" if g.kind == "movie" else "show") or (g.kind == "series" and key == "anime") %}
+            <option value="{{ key }}" {% if g.import_landing == key %}selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}
+        </select>
+        <span class="hint">If you import watch history from Yamtrack or Trakt, some of those titles won't exist in any of your apps. They are listed under one library on the Watch states page, and this chooses whether that is {{ g.name }}. Only one library takes each kind (shows, anime, films): the first in the list. A show counts as anime when the anime ID list knows it.</span>
+      </label>
+      <div><button type="submit" class="primary">Save changes</button></div>
+    </form>
+  </details>
+</section>
+{% endfor %}
+
+{% if left_out %}
+<section class="card">
+  <h2>Not in a library</h2>
+  <p class="muted">These are not compared. Put one into a library if it belongs there.</p>
+  <table>
+    <thead><tr><th>App</th><th>Library in that app</th><th>Folder it reports</th><th>Put in</th></tr></thead>
+    <tbody>
+    {% for lib, src in left_out %}
+      <tr>
+        <td>{{ dx.name(src.id, src.name) }}</td>
+        <td>{{ lib.name }} <span class="muted">({{ "TV" if lib.kind == "series" else "Movies" if lib.kind == "movie" else "folder" }})</span></td>
+        <td class="muted small">{% for p in lib.paths %}<code>{{ p }}</code>{% if not loop.last %}<br>{% endif %}{% endfor %}</td>
+        <td>
+          <form method="post" action="/settings/groups/library/{{ lib.id }}" class="row tight">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <select name="group_id" aria-label="Library for {{ lib.name }}">
+              {% for sec in sections if lib.kind == "folder" or sec.group.kind == lib.kind %}<option value="{{ sec.group.id }}">{{ sec.group.name }}</option>{% endfor %}
+            </select>
+            <button type="submit">Set</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

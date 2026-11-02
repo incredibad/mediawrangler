@@ -1,0 +1,20 @@
+<div class="fix-head">
+  <h2>{{ p.title }}?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p><strong>{{ cand.title }}</strong>{% if cand.year %} ({{ cand.year }}){% endif %}
+  <span class="muted small">{% for k, v in cand.ids.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}</span></p>
+<p class="muted">This is exactly what MediaWrangler will send to {{ p.source.name }} (its key goes in a header and is not shown):</p>
+<pre class="fix-call"><strong>{{ method }}</strong> {{ address }}
+{{ body }}</pre>
+<p class="muted small">{% if p.action == "add" %}It is added unmonitored, with the folder it is already in. Files are not touched. {% else %}Files are not touched. {% endif %}The change is recorded in the audit log.</p>
+{% if not writes_on %}<div class="flash warn">Writes to your apps are off or paused, so this will be refused. Turn them on under <a href="/settings/writes">Settings → Writes</a> first.</div>{% endif %}
+<div class="row">
+  <button type="button" hx-get="/fix/identify?group={{ group.id }}&source={{ p.source.id }}&folder={{ p.folder | urlencode }}&action={{ p.action }}" hx-target="#fix-body">Back</button>
+  <form hx-post="/fix/identify" hx-target="#fix-body" hx-disabled-elt="find button" class="inline">
+    <input type="hidden" name="group" value="{{ group.id }}"><input type="hidden" name="source" value="{{ p.source.id }}">
+    <input type="hidden" name="folder" value="{{ p.folder }}"><input type="hidden" name="action" value="{{ p.action }}">
+    <input type="hidden" name="candidate" value='{{ candidate_json }}'>
+    <button type="submit" class="primary">{{ p.title }}</button>
+  </form>
+</div>

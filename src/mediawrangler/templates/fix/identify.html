@@ -1,0 +1,43 @@
+<div class="fix-head">
+  <h2>{{ p.title }}</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p><strong>{{ name }}</strong> <span class="muted small"><code>{{ p.app_path }}</code></span></p>
+<p class="muted">{% if p.action == "add" %}Pick the show or film in {{ searched or p.source.name }}'s database. It will track the files already in this folder, not monitored, so nothing is searched for or downloaded.{% else %}{{ p.source.name }} skipped this folder because it could not tell what it is. Pick what it is{% if searched %} from {{ searched }}'s database{% endif %}; {{ p.source.name }} will then treat the folder as that title.{% endif %}</p>
+{% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+<form hx-get="/fix/identify" hx-target="#fix-body" hx-disabled-elt="find button" class="row">
+  <input type="hidden" name="group" value="{{ group.id }}"><input type="hidden" name="source" value="{{ p.source.id }}">
+  <input type="hidden" name="folder" value="{{ p.folder }}"><input type="hidden" name="action" value="{{ p.action }}">
+  <input type="text" name="q" value="{{ q }}" aria-label="Search">
+  <button type="submit">Search</button>
+</form>
+{% if not searched and not error %}<p class="muted">No Sonarr or Radarr is available to search{% if p.action == "override" %}; fill the details in yourself below{% endif %}.</p>{% endif %}
+<ul class="fix-results">
+{% for c in candidates %}
+  <li>
+    <div><strong>{{ c.title }}</strong>{% if c.year %} ({{ c.year }}){% endif %}{% for n in held_by[loop.index0] %} <span class="tag">{{ n }}</span>{% endfor %}
+      <div class="muted small">{% for k, v in c.ids.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+      {% if c.overview %}<div class="fix-overview small muted">{{ c.overview }}</div>{% endif %}</div>
+    <form hx-post="/fix/identify/preview" hx-target="#fix-body" hx-disabled-elt="find button">
+      <input type="hidden" name="group" value="{{ group.id }}"><input type="hidden" name="source" value="{{ p.source.id }}">
+      <input type="hidden" name="folder" value="{{ p.folder }}"><input type="hidden" name="action" value="{{ p.action }}">
+      <input type="hidden" name="candidate" value='{{ c | tojson }}'>
+      <button type="submit">Choose</button>
+    </form>
+  </li>
+{% endfor %}
+</ul>
+{% if p.action == "override" %}
+<details class="options"><summary>Fill in the details myself</summary>
+  <form hx-post="/fix/identify/preview" hx-target="#fix-body" hx-disabled-elt="find button">
+    <input type="hidden" name="group" value="{{ group.id }}"><input type="hidden" name="source" value="{{ p.source.id }}">
+    <input type="hidden" name="folder" value="{{ p.folder }}"><input type="hidden" name="action" value="override">
+    <label>Title <input type="text" name="m_title" value="{{ name }}"></label>
+    <label>Year <input type="text" name="m_year" size="5"></label>
+    <label>TVDB id <input type="text" name="m_tvdb" size="10"></label>
+    <label>TMDB id <input type="text" name="m_tmdb" size="10"></label>
+    <label>IMDb id <input type="text" name="m_imdb" size="10"></label>
+    <button type="submit">Continue</button>
+  </form>
+</details>
+{% endif %}

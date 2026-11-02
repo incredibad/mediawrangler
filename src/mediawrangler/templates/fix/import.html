@@ -1,0 +1,19 @@
+<div class="fix-head">
+  <h2>Which episode is this?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p><code class="small">{{ p.path[p.folder | length + 1:] }}</code></p>
+<p class="muted">Pick the episode from {{ p.source.name }}'s list. {{ p.source.name }} then moves the file into that episode's season folder, names it with its own naming format and records it. Episodes that already have a file cannot be picked.</p>
+<form hx-post="/fix/import/preview" hx-target="#fix-body" hx-disabled-elt="find button">
+  <input type="hidden" name="group" value="{{ group.id }}"><input type="hidden" name="source" value="{{ p.source.id }}">
+  <input type="hidden" name="folder" value="{{ p.folder }}"><input type="hidden" name="path" value="{{ p.path }}">
+  <input type="search" class="episode-filter" data-filter-select="episode-pick" placeholder="Search episodes, e.g. S00E01 or a title" aria-label="Search episodes" autocomplete="off">
+  <select id="episode-pick" name="episode" size="12" class="episode-pick" required>
+    {% for ep in episodes %}<option value="{{ ep.id }}"{% if ep.has_file %} disabled{% endif %}>{{ label(ep) }}{% if ep.has_file %} (has a file){% endif %}</option>
+    {% endfor %}
+  </select>
+  <div class="row">
+    <button type="button" data-close>Cancel</button>
+    <button type="submit" class="primary">Continue</button>
+  </div>
+</form>

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Not in any app{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+{% if not person %}
+<h1>Watch states</h1>
+  <div class="card"><p>No imported history yet. Add a Yamtrack or Trakt file under <a href="/settings/connectors#imports">Settings → Connectors</a>.</p></div>
+{% else %}
+<div class="pagehead">
+<h1>Watch states</h1>
+<form method="get" action="/watch/elsewhere" class="picker" data-person-form>
+  <input type="hidden" name="filter" value="{{ filter }}">
+  <input type="hidden" name="source" value="{{ source or '' }}">
+  <input type="hidden" name="q" value="{{ q }}">
+  <label><span>User</span>
+    <select name="user" aria-label="User">
+      {% for p in people %}<option value="{{ p.id }}" {% if p.id == person.id %}selected{% endif %}>{{ p.name }}</option>{% endfor %}
+    </select>
+  </label>
+  <noscript><button type="submit">Show</button></noscript>
+</form>
+</div>
+<nav class="subnav">
+  {% for g in groups %}<a href="/watch?user={{ person.id }}&group={{ g.id }}">{{ g.name }}</a>{% endfor %}
+  <a href="/watch/elsewhere?user={{ person.id }}" aria-current="page">Not in any app</a>
+</nav>
+<section class="card">
+  <p class="muted small">What {{ person.name }}'s imported history says was watched that none of your apps has in a library, plus anything that can't be matched to a title (such as Yamtrack anime missing from the anime ID list). Read-only.</p>
+  {% include "_filterbar.html" %}
+  <div class="table-wrap">
+  <table class="matrix striped" id="elsewhere-table">
+    <thead><tr><th>Title</th><th>Kind</th>{% for cid, name in columns %}<th class="s{{ loop.index0 % 2 }}">{{ name }} <span class="tag">file import</span></th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for r, shown in rows %}
+      <tr data-flags="{{ r.flags | sort | join(' ') }}" data-search="{{ r.search }}" {% if not shown %}hidden{% endif %}>
+        <td class="title"><span class="trunc" data-tip="{{ r.title }}{% if r.year %} ({{ r.year }}){% endif %}" data-tip-truncated><strong>{{ r.title }}</strong>{% if r.year %} <span class="muted">({{ r.year }})</span>{% endif %}</span>
+          {% if r.matched %}<div class="muted small">known title, nothing in any library</div>{% endif %}</td>
+        <td>{{ {"movie": "Film", "series": "Series", "other": "Can't compare"}[r.kind] }}</td>
+        {% for cid, name in columns %}{% set c = r.cells.get(cid) %}
+          <td class="cell s{{ loop.index0 % 2 }}"><div class="pad">
+            {% if not c %}<span class="muted">—</span>
+            {% elif r.kind == "series" %}{{ c.count }} {{ "episode" if c.count == 1 else "episodes" }}{% if c.last %} <span class="small muted">last {{ c.last | localtime("%Y-%m-%d") }}</span>{% endif %}
+            {% elif r.kind == "other" %}<span class="small">{{ c.note }}</span>
+            {% else %}Watched{% if c.last %} <span class="small muted">{{ c.last | localtime("%Y-%m-%d") }}</span>{% endif %}{% endif %}
+          </div></td>
+        {% endfor %}
+      </tr>
+    {% endfor %}
+    {% set colspan = 2 + columns | length %}
+    {% include "_emptyrow.html" %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
+{% block scripts %}<script src="/static/table-filter.js?v={{ version }}" defer></script>{% endblock %}

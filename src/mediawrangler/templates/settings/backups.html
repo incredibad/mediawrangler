@@ -1,0 +1,75 @@
+{% extends "settings/_layout.html" %}
+{% block title %}Backups{% endblock %}
+{% block settings %}
+<section class="card">
+  <h2>Backups</h2>
+  <p class="muted">A backup is a complete copy of MediaWrangler: Local, the audit log, every setting and match, plus <code>secret.key</code> and a settings file. Nothing in it is locked, so keep it somewhere you trust. It is made while the app runs. A nightly one is made at {{ nightly_at }} and the newest {{ keep }} are kept; ones you make by hand are kept until you delete them.
+    They sit on this machine's disk, so download one now and then to keep a copy somewhere else.</p>
+  {% if problem == "busy" %}<div class="flash warn">A backup is already running.</div>{% endif %}
+  {% if problem == "restore" %}<div class="flash bad">Could not restore: {{ detail }}</div>{% endif %}
+  {% if problem == "import" %}<div class="flash bad">Could not import: {{ detail }}</div>{% endif %}
+  {% if last_error %}<div class="flash bad">The last backup failed: {{ last_error }}</div>{% endif %}
+  <p>{% if running %}<span class="status unknown">Running</span> {% endif %}Next nightly backup: {% if next_run %}{{ next_run | localtime("%d %b %H:%M") }}{% endif %}.</p>
+  <div class="head-actions">
+    <form method="post" action="/settings/backups/run" class="inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Back up now</button>
+    </form>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Copies</h2>
+  {% if not backups %}<p class="muted">No backups yet.</p>{% else %}
+  <table class="matrix striped">
+    <thead><tr><th>Made</th><th>Kind</th><th>Version</th><th>Schema</th><th>Size</th><th>Holds</th><th></th></tr></thead>
+    <tbody>
+    {% for b in backups %}
+      <tr>
+        <td class="nowrap">{{ b.created | localtime("%d %b %Y %H:%M") }}</td>
+        <td>{{ {"nightly": "Nightly", "manual": "By hand", "copy": "Older copy (plain)"}.get(b.kind, b.kind) }}</td>
+        <td>{{ b.version or "—" }}</td>
+        <td>{{ b.schema or "—" }}</td>
+        <td class="nowrap">{{ b.size | filesize }}</td>
+        <td class="muted">{% if b.counts %}{{ "{:,}".format(b.counts.local_state) }} watched titles, {{ b.counts.app_user }} people{% else %}—{% endif %}</td>
+        <td class="nowrap">
+          <a class="button" href="/settings/backups/download/{{ b.name }}">Download</a>
+          <form method="post" action="/settings/backups/restore/{{ b.name }}" class="inline" data-confirm="Restore this backup? MediaWrangler restarts and replaces its database with this copy. The current one is saved first.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit">Restore</button>
+          </form>
+          <form method="post" action="/settings/backups/delete/{{ b.name }}" class="inline" data-confirm="Delete this backup? This cannot be undone.">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Restore from a file</h2>
+  <p class="muted">Upload a backup made by MediaWrangler. It is checked first, and refused if it comes from a newer version. MediaWrangler then restarts with it. The database it replaces is kept in this folder as <code>pre-restore-…db</code>.</p>
+  <form method="post" action="/settings/backups/restore-upload" enctype="multipart/form-data" class="row" data-confirm="Restore from this file? MediaWrangler restarts and replaces its database.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="file" name="file" accept=".gz,.db" required aria-label="Backup file">
+    <button type="submit">Restore</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Settings file</h2>
+  <p class="muted">Just the setup, not the history: connectors and their keys (in plain text), libraries, match decisions, people and their links. It is also inside every backup as <code>settings.json</code>. Importing adds and updates by name and deletes nothing, so it works on a fresh install or an existing one.</p>
+  <div class="head-actions">
+    <a class="button" href="/settings/export">Export settings</a>
+  </div>
+  <form method="post" action="/settings/import" enctype="multipart/form-data" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="file" name="file" accept=".json" required aria-label="Settings file">
+    <button type="submit">Import settings</button>
+  </form>
+</section>
+{% endblock %}

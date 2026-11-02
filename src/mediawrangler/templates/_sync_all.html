@@ -1,0 +1,6 @@
+{% if source_rows %}
+<form hx-post="/sync/all" hx-target="#sync-status" hx-swap="outerHTML" method="post" action="/sync/all" class="inline">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <button type="submit" class="primary" {% if any_running %}disabled{% endif %}>Sync everything</button>
+</form>
+{% endif %}

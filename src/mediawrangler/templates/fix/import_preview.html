@@ -1,0 +1,24 @@
+<div class="fix-head">
+  <h2>Import as {{ seen.label }}?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p><code class="small">{{ p.path[p.folder | length + 1:] }}</code></p>
+<p class="muted">{{ p.source.name }} sees it as <strong>{{ seen.quality }}</strong>{% if seen.languages %}, {{ seen.languages | join(", ") }}{% endif %}. It records the file as {{ seen.label }}, then is asked to rename it, which moves it into that episode's season folder under its own naming format. Every other app is then brought up to date with the folder.</p>
+{% if seen.rejections %}<div class="flash error"><strong>{{ p.source.name }} would refuse it:</strong>
+  <ul>{% for r in seen.rejections %}<li>{{ r }}</li>{% endfor %}</ul></div>{% endif %}
+<p class="muted">This is exactly what MediaWrangler will send to {{ p.source.name }} (its key goes in a header and is not shown):</p>
+<pre class="fix-call"><strong>{{ seen.method }}</strong> {{ seen.address }}
+{{ body }}</pre>
+<p class="muted small">{{ p.source.name }} moves the file, not MediaWrangler; it is not put in MediaWrangler's trash. The change is recorded in the audit log.</p>
+{% if not writes_on %}<div class="flash warn">Writes to your apps are off or paused, so this will be refused. Turn them on under <a href="/settings/writes">Settings → Writes</a> first.</div>{% endif %}
+<div class="row">
+  <button type="button" hx-get="/fix/import?group={{ group.id }}&source={{ p.source.id }}&folder={{ p.folder | urlencode }}&path={{ p.path | urlencode }}" hx-target="#fix-body">Back</button>
+  {% if not seen.rejections %}
+  <form hx-post="/fix/import" hx-target="#fix-body" hx-disabled-elt="find button" class="inline">
+    <input type="hidden" name="group" value="{{ group.id }}"><input type="hidden" name="source" value="{{ p.source.id }}">
+    <input type="hidden" name="folder" value="{{ p.folder }}"><input type="hidden" name="path" value="{{ p.path }}">
+    <input type="hidden" name="episode" value="{{ seen.episode.id }}">
+    <button type="submit" class="primary">Import into {{ p.source.name }}</button>
+  </form>
+  {% endif %}
+</div>

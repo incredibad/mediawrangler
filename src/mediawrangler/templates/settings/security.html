@@ -1,0 +1,99 @@
+{% extends "settings/_layout.html" %}
+{% block title %}Security{% endblock %}
+{% block settings %}
+<section class="card">
+  <h2>Two-factor authentication</h2>
+  {% if totp_error %}<div class="flash error">{{ totp_error }}</div>{% endif %}
+  {% if user.totp_enabled %}
+    <p><span class="status ok">On</span> {{ codes_left }} unused recovery code{{ "" if codes_left == 1 else "s" }} left.</p>
+    <details>
+      <summary>Turn off two-factor authentication</summary>
+      <form method="post" action="/settings/security/totp/disable" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+        <label>Current code or a recovery code <input name="code" autocomplete="one-time-code" required maxlength="20"></label>
+        <button type="submit" class="danger">Turn off</button>
+      </form>
+    </details>
+    <details {% if codes_error %}open{% endif %}>
+      <summary>New recovery codes</summary>
+      {% if codes_error %}<div class="flash error">{{ codes_error }}</div>{% endif %}
+      <p class="muted">Replaces all existing recovery codes.</p>
+      <form method="post" action="/settings/security/recovery-codes" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Password <input type="password" name="password" autocomplete="current-password" required></label>
+        <button type="submit">Generate new codes</button>
+      </form>
+    </details>
+  {% else %}
+    <p><span class="status bad">Off</span> Recommended if MediaWrangler is reachable from the internet.</p>
+    <a class="button primary" href="/settings/security/totp">Set up two-factor</a>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Password</h2>
+  {% if password_error %}<div class="flash error">{{ password_error }}</div>{% endif %}
+  <p class="muted">Last changed {{ user.password_changed_at | localtime }}. Changing it signs out every other session.</p>
+  <form method="post" action="/settings/security/password" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="username" value="{{ user.username }}" autocomplete="username">
+    <label>Current password <input type="password" name="current" autocomplete="current-password" required></label>
+    <label>New password <span class="muted">(at least {{ min_len }} characters)</span>
+      <input type="password" name="new" autocomplete="new-password" required minlength="{{ min_len }}"></label>
+    <label>Confirm new password <input type="password" name="confirm" autocomplete="new-password" required minlength="{{ min_len }}"></label>
+    <button type="submit">Change password</button>
+  </form>
+</section>
+
+<section class="card">
+  <h2>Active sessions</h2>
+  <table>
+    <thead><tr><th>Signed in</th><th>Last seen</th><th>IP</th><th>Browser</th><th></th></tr></thead>
+    <tbody>
+    {% for s in web_sessions %}
+      <tr>
+        <td>{{ s.created_at | localtime }}</td>
+        <td>{{ s.last_seen_at | localtime }}</td>
+        <td>{{ s.ip or "—" }}</td>
+        <td class="truncate" title="{{ s.user_agent or '' }}">{{ s.user_agent or "—" }}</td>
+        <td>
+          {% if s.id == current_session_id %}<span class="muted">This session</span>{% else %}
+          <form method="post" action="/settings/security/sessions/{{ s.id }}/revoke" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="link">Sign out</button>
+          </form>{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if web_sessions | length > 1 %}
+  <form method="post" action="/settings/security/sessions/revoke-others">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Sign out all other sessions</button>
+  </form>
+  {% endif %}
+</section>
+
+<section class="card">
+  <h2>Sign-in log</h2>
+  <p class="muted">The last 100 attempts. Too many failures lock out the IP or the account for 15 minutes.</p>
+  <table>
+    <thead><tr><th>Time</th><th>IP</th><th>Username</th><th>Step</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for e in events %}
+      <tr>
+        <td>{{ e.at | localtime("%Y-%m-%d %H:%M:%S") }}</td>
+        <td>{{ e.ip }}</td>
+        <td>{{ e.username }}</td>
+        <td>{{ e.step | replace("_", " ") }}</td>
+        <td>{% if e.success %}<span class="status ok">{{ "password ok, code next" if e.reason == "totp_pending" else "ok" }}</span>{% else %}<span class="status bad">{{ (e.reason or "failed") | replace("_", " ") }}</span>{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr><td colspan="5" class="muted">No sign-ins recorded yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

@@ -1,0 +1,21 @@
+{# Filter bar for the comparison tables; static/table-filter.js makes it instant.
+   Needs: action, hidden_fields, table_id, filters, filter, filter_specs,
+   default_filter, source, source_columns, q, visible_count, total_rows, noun_one, noun_many #}
+<form method="get" action="{{ action }}" class="row filters{% if filter != default_filter or q or source %} is-filtered{% endif %}" id="{{ table_id }}-controls"
+      data-table-filter data-table="{{ table_id }}" data-count="row-count" data-default="{{ default_filter }}" data-noun-one="{{ noun_one }}" data-noun-many="{{ noun_many }}"
+      data-filters='{{ filter_specs | tojson }}'>
+  {% for name, value in hidden_fields.items() %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+  <select name="filter" aria-label="Filter"{% if filter != default_filter %} class="is-active"{% endif %}>
+    {% for key, spec in filters.items() %}<option value="{{ key }}" {% if key == filter %}selected{% endif %}>{{ spec.label }}</option>{% endfor %}
+  </select>
+  {% if source_columns | length > 1 %}
+  <select name="source" aria-label="App"{% if source %} class="is-active"{% endif %} {% if not filters[filter].per_source %}hidden{% endif %}>
+    <option value="">Any app</option>
+    {% for sid, sname in source_columns %}<option value="{{ sid }}" {% if sid == source %}selected{% endif %}>{{ sname }}</option>{% endfor %}
+  </select>
+  {% endif %}
+  <input type="search" name="q" value="{{ q }}" placeholder="Search" aria-label="Search" autocomplete="off"{% if q %} class="is-active"{% endif %}>
+  <button type="submit" data-no-js>Filter</button>
+  <button type="button" class="clear-filters" data-clear-filters>Clear filters</button>
+  <span class="muted" id="row-count">{{ "{:,}".format(visible_count) }} of {{ "{:,}".format(total_rows) }} {{ noun_one if total_rows == 1 else noun_many }}</span>
+</form>

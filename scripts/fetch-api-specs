@@ -1,0 +1,35 @@
+#!/bin/sh
+# Refresh the API spec snapshots in docs/api/.
+#
+#   scripts/fetch-api-specs [JELLYFIN_URL] [SILO_URL]
+#
+# Jellyfin and Silo serve their specs without auth; Sonarr and Radarr don't
+# serve theirs, so those come from upstream GitHub. Review the git diff after
+# running: a changed endpoint we use is a reason to update a connector.
+set -eu
+
+JELLYFIN_URL="${1:-${JELLYFIN_URL:-http://localhost:8096}}"
+SILO_URL="${2:-${SILO_URL:-http://localhost:8090}}"
+OUT="$(cd "$(dirname "$0")/.." && pwd)/docs/api"
+mkdir -p "$OUT"
+
+fetch() {
+  name="$1"; url="$2"
+  tmp="$OUT/.$name.tmp"
+  if curl -fsSL --max-time 120 -o "$tmp" "$url"; then
+    python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$tmp"
+    mv "$tmp" "$OUT/$name"
+    echo "ok    $name  <- $url"
+  else
+    rm -f "$tmp"
+    echo "FAIL  $name  <- $url" >&2
+    return 1
+  fi
+}
+
+status=0
+fetch jellyfin-openapi.json "$JELLYFIN_URL/api-docs/openapi.json" || status=1
+fetch silo-openapi.json "$SILO_URL/api/v2/openapi.json" || status=1
+fetch sonarr-openapi.json "https://raw.githubusercontent.com/Sonarr/Sonarr/develop/src/Sonarr.Api.V3/openapi.json" || status=1
+fetch radarr-openapi.json "https://raw.githubusercontent.com/Radarr/Radarr/develop/src/Radarr.Api.V3/openapi.json" || status=1
+exit $status

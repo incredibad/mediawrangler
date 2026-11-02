@@ -1,0 +1,15 @@
+{% extends "settings/_layout.html" %}
+{% block title %}Add connector{% endblock %}
+{% block settings %}
+<section class="card">
+  <h2>Add a connector</h2>
+  <p class="muted">Pick the kind of app. Running more than one of a kind (say, two Radarrs)? Add each as its own connector.</p>
+  <div class="tiles">
+    {% for key, cls in types.items() %}
+      <a class="tile" href="/settings/connectors/new?type={{ key }}">
+        <span class="tile-name">{{ cls.display_name }}</span>
+      </a>
+    {% endfor %}
+  </div>
+</section>
+{% endblock %}

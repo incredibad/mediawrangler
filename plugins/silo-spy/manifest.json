@@ -1,0 +1,85 @@
+{
+  "plugin_id": "mediawrangler.spy",
+  "version": "0.0.2",
+  "checksum": "__CHECKSUM__",
+  "silo_api_version": "v1",
+  "supported_platforms": [
+    {
+      "os": "linux",
+      "arch": "amd64"
+    },
+    {
+      "os": "linux",
+      "arch": "arm64"
+    }
+  ],
+  "capabilities": [
+    {
+      "type": "watch_sync_provider.v1",
+      "id": "mwspy",
+      "display_name": "MediaWrangler spy",
+      "description": "Spike: logs every watch event Silo sends to a listener on the LAN. Reads nothing back and changes nothing.",
+      "watch_sync_provider": {
+        "auth_methods": [
+          "WATCH_SYNC_AUTH_METHOD_API_KEY"
+        ],
+        "export_watched": true,
+        "export_unwatched": true,
+        "scrobble_playback": true,
+        "supported_media_types": [
+          "WATCH_SYNC_MEDIA_TYPE_MOVIE",
+          "WATCH_SYNC_MEDIA_TYPE_EPISODE",
+          "WATCH_SYNC_MEDIA_TYPE_SERIES"
+        ],
+        "external_id_namespaces": [
+          "tmdb",
+          "imdb",
+          "tvdb"
+        ],
+        "max_batch_size": 50
+      }
+    },
+    {
+      "type": "event_consumer.v1",
+      "id": "mwspy-events",
+      "display_name": "MediaWrangler spy (events)",
+      "description": "Spike: logs the name and payload of every Silo event it is subscribed to.",
+      "subscriptions": [
+        "*",
+        "user_state",
+        "user_state.changed",
+        "user_state.updated",
+        "watch",
+        "watch.changed",
+        "watched",
+        "unwatched",
+        "history",
+        "history.changed",
+        "playback",
+        "playback.started",
+        "playback.stopped",
+        "playback.completed",
+        "playback.progress",
+        "progress",
+        "progress.updated",
+        "media.watched",
+        "media.unwatched",
+        "item.watched",
+        "item.unwatched",
+        "watch_state.changed",
+        "user.watch.changed",
+        "catalog",
+        "sessions",
+        "notifications"
+      ]
+    }
+  ],
+  "category": "Watch Providers",
+  "presentation": {
+    "display_name": "MediaWrangler spy (spike)",
+    "summary": "Logs Silo's watch events to a LAN listener. Temporary test plugin.",
+    "description_markdown": "Spike for MediaWrangler: forwards every watched, unwatched and playback event Silo sends to a listener on the local network so we can see exactly what Silo emits. It imports nothing and changes nothing.",
+    "setup_markdown": "Connect a profile and enter any text as the API key.",
+    "license_spdx": "MIT"
+  }
+}

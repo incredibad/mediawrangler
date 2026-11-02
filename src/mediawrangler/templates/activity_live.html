@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block main_class %}page wide{% endblock %}
+{% block title %}Activity{% endblock %}
+{% block content %}
+<h1>Activity</h1>
+<nav class="subnav">
+  {% for key, label in tabs.items() %}<a href="/activity?tab={{ key }}" {% if key == tab %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+</nav>
+<section class="card">
+  <p class="muted small">What your apps tell MediaWrangler the moment it happens. New events appear at the top by themselves. <span id="live-state" class="status unknown" data-live-state>connecting…</span></p>
+  <div class="table-wrap">
+  <table id="live-table" data-live-stream="/activity/stream">
+    <thead><tr><th>When</th><th>App</th><th>Event</th><th>Who</th><th>What</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for it in events %}
+      <tr data-id="{{ it.id }}">
+        <td>{{ it.at | iso_local }}</td>
+        <td>{{ it.app }}</td>
+        <td><code>{{ it.event }}</code></td>
+        <td>{{ it.profile }}</td>
+        <td>{{ it.summary }}</td>
+        <td><span class="status {{ 'ok' if it.status == 'applied' else 'bad' if it.status == 'error' else 'unknown' }}">{{ it.status }}</span>{% if it.note %} <span class="muted small">{{ it.note }}</span>{% endif %}</td>
+      </tr>
+    {% else %}
+      <tr class="js-empty"><td colspan="6" class="muted">Nothing yet. Once Silo's Event Webhooks plugin is pointed at MediaWrangler (Settings → Connectors → Silo), events show up here.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/live-feed.js?v={{ version }}" defer></script>{% endblock %}

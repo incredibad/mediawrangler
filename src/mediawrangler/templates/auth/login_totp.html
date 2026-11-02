@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Two-factor code{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Enter your code</h1>
+  <p class="muted">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" action="/login/totp" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="next" value="{{ next or '/' }}">
+    <label>Code
+      <input name="code" autocomplete="one-time-code" inputmode="text" required maxlength="20" autofocus>
+    </label>
+    <button type="submit" class="primary">Verify</button>
+  </form>
+  <form method="post" action="/logout" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="link">Cancel and start over</button>
+  </form>
+</div>
+{% endblock %}

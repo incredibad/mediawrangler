@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}Overview{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+<div class="pagehead"><h1>Overview</h1></div>
+{% if not source_rows %}
+  <div class="card">
+    <h2>Get started</h2>
+    <p>Add a connector for each app MediaWrangler should read: your media servers (Jellyfin, Silo) and your *arr instances.</p>
+    <a class="button primary" href="/settings/connectors/new">Add a connector</a>
+  </div>
+{% else %}
+  <section class="card">
+    <div class="card-head"><h2>Connectors</h2>
+      <div class="head-actions">
+        {% if master %}<span class="muted">Master: <strong>{{ dx.name(master.id, master.name) }}</strong> · <a href="/settings/connectors">change</a></span>{% endif %}
+        <div id="sync-all">{% include "_sync_all.html" %}</div>
+      </div>
+    </div>
+    {% include "_sync_status.html" %}
+  </section>
+
+  {% if views %}
+  <section class="card">
+    <div class="card-head"><h2>Metadata</h2><a href="/presence">Open</a></div>
+    <div class="table-wrap">
+    <table class="matrix striped">
+      <thead><tr><th>Group</th>{% for col in meta_cols %}<th class="s{{ loop.index0 % 2 }}">{{ dx.name(col.id, col.name) }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for v in views %}{% set m = v.summaries.get(v.master_id) %}{% set ids = v.columns | map(attribute="id") | list %}{% set arr_ids = v.arrs | map(attribute="id") | list %}
+        <tr>
+          <td class="title"><a href="/presence?group={{ v.group.id }}">{{ v.group.name }}</a></td>
+          {% for col in meta_cols %}
+            <td class="cell s{{ loop.index0 % 2 }}"><div class="pad">
+            {% if col.id in ids %}{% set s = v.summaries[col.id] %}
+              {{ "{:,}".format(s.present if m and col.id != v.master_id else s.total) }}{% if m and col.id != v.master_id %} {{ dx.delta(s.present, m.total, master.name, true) }}{% endif %}
+            {% elif col.id in arr_ids %}{{ "{:,}".format(v.summaries[col.id].total) }} <span class="muted small">tracked</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+            </div></td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-head"><h2>Physical</h2><a href="/physical">Open</a></div>
+    <div class="table-wrap">
+    <table class="matrix striped">
+      <thead><tr><th>Group</th>{% for col in physical_cols %}<th class="s{{ loop.index0 % 2 }}">{{ dx.name(col.id, col.name) }}</th>{% endfor %}</tr></thead>
+      <tbody>
+      {% for pv in physical %}{% set ref = pv.summaries[pv.ref_id] if pv.ref_id else none %}{% set ids = pv.columns | map(attribute="id") | list %}
+        <tr>
+          <td class="title"><a href="/physical?group={{ pv.group.id }}">{{ pv.group.name }}</a></td>
+          {% for col in physical_cols %}
+            <td class="cell s{{ loop.index0 % 2 }}"><div class="pad">
+            {% if col.id in ids %}{% set s = pv.summaries[col.id] %}
+              {{ "{:,}".format(s.files) }}{% if ref and col.id != pv.ref_id %} {{ dx.delta(s.files, ref.files, ref.source.name, true) }}{% endif %}
+              <span class="muted small">{{ "{:,}".format(s.folders) }} folders</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+            </div></td>
+          {% endfor %}
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+  </section>
+
+  <div class="two-col">
+    <section class="card">
+      <div class="card-head"><h2>Watched</h2><a href="/watch">Open</a></div>
+      {% if people %}
+      <table class="matrix striped">
+        <thead><tr><th>User</th>{% for a in watched_apps %}<th class="s{{ loop.index0 % 2 }}">{{ dx.name(a.id, a.name) }}</th>{% endfor %}<th>Local</th></tr></thead>
+        <tbody>{% for u, n in people %}<tr><td>{{ u.name }}</td>
+          {% for a in watched_apps %}<td class="cell s{{ loop.index0 % 2 }}"><div class="pad">{% set c = watched_by.get((u.id, a.id)) %}{% if c is not none %}{{ "{:,}".format(c) }}{% else %}<span class="muted">—</span>{% endif %}</div></td>{% endfor %}
+          <td><strong>{{ "{:,}".format(n) }}</strong></td></tr>{% endfor %}</tbody>
+      </table>
+      {% else %}<p class="muted">Local isn't filled yet.</p>{% endif %}
+    </section>
+
+    <section class="card">
+      <div class="card-head"><h2>Activity</h2><a href="/activity">Open</a></div>
+      <table class="matrix striped">
+        <thead><tr><th>Period</th><th>Watch changes</th></tr></thead>
+        <tbody>{% for label, n in events.items() %}<tr><td>{{ label }}</td><td>{{ "{:,}".format(n) }}</td></tr>{% endfor %}</tbody>
+      </table>
+    </section>
+  </div>
+  {% elif source_rows %}
+  <div class="card"><p class="muted">Sync your media servers to see where they disagree.</p></div>
+  {% endif %}
+{% endif %}
+{% endblock %}

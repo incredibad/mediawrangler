@@ -1,0 +1,36 @@
+{% extends "settings/_layout.html" %}
+{% block title %}Trash{% endblock %}
+{% block settings %}
+<section class="card">
+  <h2>Trash</h2>
+  <p class="muted">Files MediaWrangler has taken off your media share. Each was moved into a trash folder ({% if trash_dir %}<code>{{ trash_dir }}</code>{% else %}a <code>.mediawrangler-trash</code> folder inside its library folder{% endif %}), so none of them is gone yet. They are kept for {{ retention }} days, then deleted for good if File changes is switched on. Put one back any time before that.</p>
+  {% if problem %}<div class="flash bad">{{ problem }}</div>{% endif %}
+  {% if ok %}<div class="flash ok">{{ ok }}</div>{% endif %}
+  {% if not on %}<div class="flash warn">File changes are off, so nothing here is deleted, even after {{ retention }} days. <a href="/settings/writes">Settings → Writes</a>.</div>{% endif %}
+  {% if not writable %}<div class="flash warn">Some folders are read-only ({{ readonly | join(", ") }}), so files there cannot be moved or put back. See <a href="/settings/writes">Settings → Writes</a>.</div>{% endif %}
+  {% if not trashed %}<p>The trash is empty.</p>{% else %}
+  <p>{{ trashed | length }} {{ "file" if trashed | length == 1 else "files" }}, {{ total | filesize }}.</p>
+  <table class="matrix striped">
+    <thead><tr><th>File</th><th>Size</th><th>Moved</th><th>Deleted in</th><th></th></tr></thead>
+    <tbody>
+    {% for i in trashed %}
+      <tr>
+        <td class="title"><span class="trunc" data-tip="{{ i.original_path }}" data-tip-truncated><code class="small">{{ i.original_path }}</code></span><div class="muted small">{{ i.why }}</div></td>
+        <td class="nowrap">{{ (i.size or 0) | filesize }}</td>
+        <td class="nowrap">{{ i.trashed_at | localtime("%d %b %Y %H:%M") }}</td>
+        <td class="nowrap">{{ days[i.id] }} {{ "day" if days[i.id] == 1 else "days" }}</td>
+        <td class="nowrap">
+          <form method="post" action="/settings/trash/{{ i.id }}/restore" class="inline"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit">Put back</button></form>
+          <form method="post" action="/settings/trash/{{ i.id }}/delete" class="inline" data-confirm="Delete {{ i.label }} for good? This cannot be undone."><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button type="submit" class="danger-text" {% if not on %}disabled{% endif %}>Delete now</button></form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <form method="post" action="/settings/trash/empty" data-confirm="Delete all {{ trashed | length }} files in the trash for good? This cannot be undone.">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="danger-text" {% if not on %}disabled{% endif %}>Empty the trash</button>
+  </form>
+  {% endif %}
+</section>
+{% endblock %}

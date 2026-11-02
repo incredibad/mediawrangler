@@ -1,0 +1,19 @@
+{% for j in jobs %}
+{% set failed = j.state == 'error' or (j.steps and j.failed) %}
+<div class="toast {{ 'running' if j.state == 'running' else ('bad' if failed else ('warn' if j.note else 'ok')) }}" role="status" data-job="{{ j.id }}">
+  <div class="toast-icon">{% if j.state == 'running' %}<span class="spinner"></span>{% elif failed %}✕{% else %}✓{% endif %}</div>
+  <div class="toast-body">
+    <strong>{{ j.label }}</strong>
+    {% if j.steps %}
+    <ul class="steps">
+      {% for st in j.steps %}
+      <li class="step {{ st.state }}"><span class="step-icon">{% if st.state == 'running' %}<span class="spinner"></span>{% elif st.state == 'done' %}✓{% elif st.state == 'failed' %}✕{% else %}○{% endif %}</span><span>{{ st.label }}{% if st.detail %}<small> · {{ st.detail }}</small>{% endif %}</span></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <div class="small">{% if j.state == 'running' %}{% if not j.steps %}{{ j.text or 'Working…' }}{% endif %}{% elif j.state == 'error' %}Failed: {{ j.error }}{% elif failed %}Failed: {{ j.note }}{% elif j.note %}Done, with one thing to know: {{ j.note }}{% elif j.steps %}Completed.{% else %}Done.{% endif %}</div>
+    {% if j.finished and j.url and j.state != 'error' %}<div class="toast-actions"><a href="{{ j.url }}">Check the page</a></div>{% endif %}
+  </div>
+  {% if j.finished %}<button type="button" class="link toast-close" aria-label="Dismiss" hx-post="/fix/toasts/{{ j.id }}/dismiss" hx-target="#toasts" hx-swap="innerHTML">✕</button>{% endif %}
+</div>
+{% endfor %}

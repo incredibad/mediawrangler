@@ -1,0 +1,63 @@
+<section class="card" id="imports">
+  <h2>Watch history imports</h2>
+  <p class="muted small">Each file is one person's history, and a person can have a Yamtrack and a Trakt file at the same time. It is compared in Watch states like another app and is read-only: nothing is sent to Yamtrack, Trakt or any other app.</p>
+  {% if imports %}
+  <table>
+    <thead><tr><th>Person</th><th>From</th><th>File</th><th>Imported</th><th>Films</th><th>Episodes</th><th>Plays</th><th>Anime</th><th></th></tr></thead>
+    <tbody>
+    {% for imp, name in imports %}
+      <tr>
+        <td>{{ name }}</td>
+        <td>{{ kinds[imp.kind] }}</td>
+        <td class="small">{{ imp.filename }}</td>
+        <td>{{ imp.imported_at | localtime }}</td>
+        <td>{{ "{:,}".format(imp.stats.movies) }}</td>
+        <td>{{ "{:,}".format(imp.stats.episodes) }}</td>
+        <td>{{ "{:,}".format(imp.stats.get("plays") or 0) if imp.stats.get("plays") else "—" }}</td>
+        <td>{{ "{:,}".format(imp.stats.get("anime") or imp.stats.get("other") or 0) }}</td>
+        <td>
+          <form method="post" action="/settings/imports/{{ imp.id }}/delete" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger" title="Unlink this file from {{ name }} and delete its imported data">Unlink</button>
+          </form>
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted">Nothing imported yet.</p>{% endif %}
+<h3>Import a file</h3>
+  {% if import_error %}<div class="flash error">{{ import_error }}</div>{% endif %}
+  <form method="post" action="/settings/imports" enctype="multipart/form-data" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Whose history is this?
+      <select name="person" required>
+        <option value="">Choose a person…</option>
+        {% for p in people %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
+      </select>
+    </label>
+    <label>Kind of file
+      <select name="kind" required>
+        <option value="">Choose…</option>
+        <option value="yamtrack">Yamtrack export (.csv)</option>
+        <option value="trakt">Trakt export (.zip)</option>
+      </select>
+    </label>
+    <label>File <input type="file" name="file" required accept=".csv,.zip"></label>
+    <span class="hint">Unlink removes that file's data from MediaWrangler (your apps and the file itself are untouched). Importing again for the same person and kind replaces the earlier import.</span>
+    <div class="actions"><button type="submit" class="primary">Import</button></div>
+  </form>
+  <h3>Anime ID list</h3>
+  <p class="muted small">Yamtrack lists anime by MyAnimeList id. MediaWrangler uses the public community
+    <a href="https://github.com/Fribb/anime-lists" rel="noreferrer">anime-lists</a> file to turn those into TVDB/TMDB ids,
+    downloading it about once a day, because the list gains new anime often. That is the only thing it fetches from outside your network.</p>
+  <p class="small">
+    {% if anime_list.fetched_at %}Updated {{ anime_list.fetched_at | localtime_iso }} ({{ "{:,}".format(anime_count) }} anime).
+    {% else %}Not downloaded yet.{% endif %}
+    {% if anime_list.error %}<span class="status bad">Last attempt failed</span> <span class="muted">{{ anime_list.error }}</span>{% endif %}
+  </p>
+  <form method="post" action="/settings/imports/anime-list/refresh" class="inline">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Download now</button>
+  </form>
+</section>

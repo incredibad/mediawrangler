@@ -1,0 +1,32 @@
+{% extends "settings/_layout.html" %}
+{% block title %}Writes{% endblock %}
+{% block settings %}
+{% include "settings/_writes_controls.html" %}
+
+{% if preview %}
+<section class="card">
+  <h2>Preview for {{ preview.person.name }}</h2>
+  {% if preview.queued %}<p><strong>{{ "{:,}".format(preview.queued) }}</strong> write{{ "s" if preview.queued != 1 }} for {{ preview.person.name }} {{ "are" if preview.queued != 1 else "is" }} already queued and not listed here.{% if preview.total %} The rest are below.{% endif %}</p>{% endif %}
+  {% if not preview.total %}{% if not preview.queued %}<p>Nothing to write: every app agrees with Local.</p>{% endif %}
+  {% else %}
+  <p>{{ "{:,}".format(preview.total) }} write{{ "s" if preview.total != 1 }}:
+    {% for (app, op), n in preview.counts %}<strong>{{ "{:,}".format(n) }}</strong> {{ app }} {{ "mark played" if op == "played" else "mark unplayed" }}{{ ", " if not loop.last }}{% endfor %}.
+    Unwatches are written only if they happen after a user is switched on. Jellyfin keeps the watched date shown; Silo records the day the write is sent.</p>
+  <table class="matrix striped">
+    <thead><tr><th>Title</th><th>Writes to</th><th>Write</th><th>Watched</th><th>Known from</th></tr></thead>
+    <tbody>
+    {% for row in preview.rows %}{% set r = row.item %}<tr><td class="title">{{ r.label }}</td><td>{{ row.apps | join(", ") }}</td><td>{{ "Mark played" if r.op == "played" else "Mark unplayed" }}</td><td>{{ r.played_at | localtime("%d %b %Y") if r.played_at else "—" }}</td><td>{{ r.origin or "—" }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+  {% if preview.records > preview_rows %}
+    <p class="muted small">
+      {% if preview.all %}Showing all {{ "{:,}".format(preview.records) }} records. <a href="/settings/writes?preview={{ preview.person_id }}">Show the first {{ preview_rows }}</a>
+      {% else %}Showing the first {{ preview_rows }} of {{ "{:,}".format(preview.records) }} records. <a href="/settings/writes?preview={{ preview.person_id }}&all=1">Show all</a>{% endif %}
+    </p>
+  {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
+<p class="muted">What was written, and why, is in the <a href="/activity?tab=audit">Audit log</a> on the Activity page.</p>
+{% endblock %}

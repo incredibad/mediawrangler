@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}First-run setup{% endblock %}
+{% block main_class %}narrow{% endblock %}
+{% block content %}
+<div class="card">
+  <h1><img src="/static/icon.svg" alt="" width="28" height="28"> Welcome to MediaWrangler</h1>
+  <p class="muted">Create the admin account. This is the only account, and sign-up closes once it exists.</p>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" action="/setup" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Username
+      <input name="username" value="{{ username or '' }}" autocomplete="username" required maxlength="64" autofocus>
+    </label>
+    <label>Password <span class="muted">(at least {{ min_len }} characters)</span>
+      <input type="password" name="password" autocomplete="new-password" required minlength="{{ min_len }}">
+    </label>
+    <label>Confirm password
+      <input type="password" name="confirm" autocomplete="new-password" required minlength="{{ min_len }}">
+    </label>
+    <button type="submit" class="primary">Create admin account</button>
+  </form>
+</div>
+<div class="card">
+  <h2>Or restore a backup</h2>
+  <p class="muted">Already have a MediaWrangler backup? Upload it and this install picks up where that one left off, including its admin account.</p>
+  {% if restore_error %}<div class="flash error">{{ restore_error }}</div>{% endif %}
+  <form method="post" action="/setup/restore" enctype="multipart/form-data" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="file" name="file" accept=".gz,.db" required aria-label="Backup file">
+    <button type="submit">Restore</button>
+  </form>
+</div>
+{% endblock %}

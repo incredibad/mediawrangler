@@ -1,0 +1,190 @@
+{% extends "settings/_layout.html" %}
+{% block title %}{{ "Edit" if source else "Add" }} {{ cls.display_name }}{% endblock %}
+{% block settings %}
+<section class="card">
+  <h2>{{ "Edit" if source else "Add" }} {{ cls.display_name }} connector</h2>
+  {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+  <form method="post" action="{{ '/settings/connectors/%d' % source.id if source else '/settings/connectors/new' }}" class="stack">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if not source %}<input type="hidden" name="type" value="{{ cls.type }}">{% endif %}
+    <label>Name <span class="muted">(e.g. "{{ cls.display_name }}" or "{{ cls.display_name }} 4K")</span>
+      <input name="name" value="{{ form.name or '' }}" required maxlength="64" {% if not source %}autofocus{% endif %}>
+    </label>
+    {% if cls.location_kind == "path" %}
+    <label>Folder in the container
+      <input name="base_url" value="{{ form.base_url or '' }}" placeholder="{{ cls.url_placeholder }}" required>
+      <span class="hint">Where the media share is mounted (read-only) in the MediaWrangler container. Only top-level folders that belong to a library group are scanned.</span>
+    </label>
+    {% else %}
+    <label>URL
+      <input name="base_url" value="{{ form.base_url or '' }}" placeholder="{{ cls.url_placeholder }}" required type="url">
+    </label>
+    {% endif %}
+    {% if cls.needs_secret %}
+    <label>API key
+      <input type="password" name="secret" autocomplete="off" {% if not source %}required{% endif %}
+             placeholder="{{ 'A key is stored. Leave blank to keep it.' if source and source.secret_enc else '' }}">
+      <span class="hint">{{ cls.key_help }} Create a dedicated key for MediaWrangler so you can revoke it on its own.
+        Keys are encrypted at rest and never shown again.</span>
+    </label>
+    {% endif %}
+    {% if cls.uses_path_map %}
+    <label>Path map <span class="muted">(optional)</span>
+      <textarea name="path_map" rows="4" spellcheck="false" placeholder="/data/TV => /media/TV">{{ form.path_map or '' }}</textarea>
+      <span class="hint">One rule per line: <code>path as this app sees it => canonical path</code>. Canonical paths are how MediaWrangler sees the media share (by default under <code>/media</code>). Longest prefix wins.
+        {% if source and (source.options or {}).get("path_map_auto", True) %}<br><strong>Set automatically</strong> from the Libraries page (each library's folder maps to the share folder in the same library). Edit it to take over; clear it to go back to automatic.{% elif source %}<br>Edited by hand. Clear it to have it derived from library groups again.{% endif %}</span>
+    </label>
+    {% endif %}
+    {% macro schedule_row(prefix, title, hint) %}
+    <fieldset class="schedule">
+      <legend>{{ title }}</legend>
+      <div class="row">
+        <select name="{{ prefix }}_mode" aria-label="{{ title }} schedule">
+          <option value="manual" {% if form[prefix ~ '_mode'] == 'manual' %}selected{% endif %}>Manual</option>
+          <option value="at" {% if form[prefix ~ '_mode'] == 'at' %}selected{% endif %}>Every day at</option>
+          <option value="every" {% if form[prefix ~ '_mode'] == 'every' %}selected{% endif %}>Every</option>
+        </select>
+        <input name="{{ prefix }}_at" value="{{ form[prefix ~ '_at'] or '' }}" placeholder="04:00" maxlength="5" size="6" aria-label="Time of day, 24-hour">
+        <span class="muted">or</span>
+        <input name="{{ prefix }}_every" value="{{ form[prefix ~ '_every'] or '' }}" inputmode="numeric" maxlength="4" size="5" aria-label="How often">
+        <select name="{{ prefix }}_unit" aria-label="Unit">
+          <option value="min" {% if form[prefix ~ '_unit'] != 'hours' %}selected{% endif %}>minutes</option>
+          <option value="hours" {% if form[prefix ~ '_unit'] == 'hours' %}selected{% endif %}>hours</option>
+        </select>
+      </div>
+      <span class="hint">{{ hint }}</span>
+    </fieldset>
+    {% endmacro %}
+    {{ schedule_row("schedule", "Full sync", "Manual means only when you click Sync now. The time is 24-hour, in the server's time zone; pick an off-peak hour.") }}
+    {% if type_can_quick(cls.type) %}
+    {{ schedule_row("quick", "Watch-state sync", "Reads only users and what each has watched, so it can run often. A full sync also does this.") }}
+    {% endif %}
+    <label class="check"><input type="checkbox" name="enabled" {% if form.enabled %}checked{% endif %}> Enabled</label>
+    <div class="actions">
+      <button type="submit" class="primary">Save</button>
+      <a class="button" href="/settings/connectors">Cancel</a>
+      <span class="test-inline">
+        <span id="test-result"></span>
+        <button type="button" hx-post="/settings/connectors/test" hx-include="closest form" hx-target="#test-result" hx-swap="innerHTML" hx-disabled-elt="this">Test connection</button>
+      </span>
+    </div>
+    {% if source %}<input type="hidden" name="source_id" value="{{ source.id }}">{% endif %}
+  </form>
+</section>
+
+{% if source %}
+{% if webhook %}
+<section class="card">
+  <h2>Webhooks from {{ cls.display_name }}</h2>
+  {% if not webhook.listening %}
+    <p class="muted">The webhook listener is switched off (MW_WEBHOOK_PORT is 0).</p>
+  {% else %}
+  <p class="muted">{{ cls.display_name }} can tell MediaWrangler the moment something happens, so it doesn't wait for the next scheduled sync. Anything it sends is shown on <a href="/activity?tab=live">Activity → Live events</a>. MediaWrangler only stores what it hears; it changes nothing in {{ cls.display_name }}.</p>
+  {% if webhook.kind == "silo" %}
+    <p class="muted small">Install the Event Webhooks plugin in Silo, then give it the address and secret below (it signs each request with the secret).</p>
+  {% elif webhook.kind == "jellyfin" %}
+    <p class="muted small">In Jellyfin's Webhook plugin add a Generic destination to the address below, with the header <code>X-MW-Token</code> set to the secret. Tick <em>User Data Saved</em>, <em>Playback Start</em>, <em>Playback Stop</em>, <em>Item Added</em> and <em>Item Deleted</em>, enable movies and episodes, and send all properties.</p>
+  {% else %}
+    <p class="muted small">In {{ cls.display_name }} go to Settings → Connect → add a Webhook, POST to the address below, with a header <code>X-MW-Token</code> set to the secret. Tick the events for import, upgrade, rename and delete, and for series or movies being added or deleted.</p>
+  {% endif %}
+  <label>Address to send to
+    <input value="{{ webhook.url }}" readonly>
+    <span class="hint">LAN only. This port is separate from the login page and should never be put behind a public proxy.</span>
+  </label>
+  {% if new_secret %}
+    <div class="flash warn"><strong>Secret (shown once):</strong> <code>{{ new_secret }}</code><br>Copy it into the plugin's Secret field now. MediaWrangler keeps it encrypted and can't show it again.</div>
+  {% else %}
+    <p>{% if webhook.secret_set %}<span class="status ok">Secret set</span>{% else %}<span class="status bad">No secret yet</span> events are refused until one is made{% endif %}</p>
+  {% endif %}
+  <form method="post" action="/settings/connectors/{{ source.id }}/webhook-secret">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">{{ "Make a new secret" if webhook.secret_set else "Make a secret" }}</button>
+    {% if webhook.secret_set %}<span class="muted small">The old secret stops working at once.</span>{% endif %}
+  </form>
+  {% endif %}
+</section>
+{% endif %}
+
+{% if silo_keys is defined and silo_keys %}
+<section class="card">
+  <h2>Read other users' watch state</h2>
+  <p class="muted">Silo only lets a key read the profiles of its own account. To read everyone's watched state, MediaWrangler makes one key per account (labelled <code>{{ key_label }}</code>) and keeps it encrypted, never shown. It only reads with them. Silo has no read-only key, so each key could also act as its user: revoke any here and it is deleted in Silo.</p>
+  {% if keys_result %}
+    {% if keys_result.made %}<div class="flash ok">Made keys for {{ keys_result.made | join(", ") }}. Reading their watch state now.</div>{% endif %}
+    {% if keys_result.revoked %}<div class="flash ok">Key deleted in Silo.</div>{% endif %}
+    {% for e in keys_result.errors %}<div class="flash warn">{{ e }}</div>{% endfor %}
+  {% endif %}
+  <table>
+    <thead><tr><th>Account</th><th>Profiles</th><th>Read with</th><th></th></tr></thead>
+    <tbody>
+    {% for a in silo_keys.accounts %}
+      <tr>
+        <td>{{ a.id }}</td>
+        <td>{{ a.profiles | join(", ") }}</td>
+        <td>
+          {% if a.state == "key" %}<span class="status ok">Its own key</span> <span class="muted small">made {{ a.made | localtime("%d %b %Y") }}</span>
+          {% elif a.state == "own" %}<span class="status ok">This connector's key</span>
+          {% elif a.state == "gone" %}<span class="status bad">Its key is missing in Silo</span>
+          {% else %}<span class="status bad">Not readable</span>{% endif %}
+        </td>
+        <td>
+          {% if a.state in ("missing", "gone") and not keys_preview %}
+          <form method="post" action="/settings/connectors/{{ source.id }}/silo-keys/preview" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="account_id" value="{{ a.id }}">
+            <button type="submit">{{ "Make a new key…" if a.state == "gone" else "Make a key…" }}</button>
+          </form>
+          {% endif %}
+          {% if a.state == "key" %}
+          <form method="post" action="/settings/connectors/{{ source.id }}/silo-keys/{{ a.id }}/revoke" class="inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="danger">Revoke</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if silo_keys.missing and not keys_preview %}
+  <form method="post" action="/settings/connectors/{{ source.id }}/silo-keys/preview">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit">Make keys for {{ silo_keys.missing | length }} account{{ "s" if silo_keys.missing | length != 1 }}…</button>
+    <span class="muted small">Shows exactly what will be sent first. Nothing is sent yet.</span>
+  </form>
+  {% elif not silo_keys.missing and not keys_preview %}
+    <p class="muted small">Every account is readable.</p>
+  {% endif %}
+  {% if keys_preview %}
+  <div class="flash warn">
+    <strong>This will send these requests to Silo:</strong>
+    <ul>
+      {% for a, stale in keys_preview.plan %}
+        {% for k in stale %}<li><code>DELETE /api/v2/admin/api-keys/{{ k.id }}</code> <span class="muted">(a leftover "{{ key_label }}" key for {{ a.profiles | join(", ") }} that MediaWrangler no longer holds)</span></li>{% endfor %}
+        <li><code>POST /api/v2/admin/api-keys</code> with <code>{"label": "{{ key_label }}", "user_id": "{{ a.id }}"}</code> <span class="muted">({{ a.profiles | join(", ") }})</span></li>
+      {% else %}<li>Nothing to send: every account is readable.</li>{% endfor %}
+    </ul>
+    No scopes are set. Each key is stored encrypted here and Silo will not show it again.
+  </div>
+  {% if keys_preview.plan %}
+  <form method="post" action="/settings/connectors/{{ source.id }}/silo-keys/create">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="account_id" value="{{ keys_preview.only }}">
+    <button type="submit" class="primary">Send these requests</button>
+    <a href="/settings/connectors/{{ source.id }}">Cancel</a>
+  </form>
+  {% endif %}
+  {% endif %}
+</section>
+{% endif %}
+
+<section class="card danger-zone">
+  <h2>Delete</h2>
+  <p class="muted">Removes this connector and its stored key. Nothing changes in {{ cls.display_name }} itself.</p>
+  <form method="post" action="/settings/connectors/{{ source.id }}/delete">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="danger">Delete {{ source.name }}</button>
+  </form>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,22 @@
+<div class="fix-head">
+  <h2>Change in {{ source.name }}?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<table class="fix-compare">
+  <tr><th></th><th>{{ source.name }} has now</th><th>It will have</th></tr>
+  <tr><th>Show</th><td>{{ item.title }}{% if item.year %} ({{ item.year }}){% endif %}</td><td><strong>{{ cand.title }}</strong>{% if cand.year %} ({{ cand.year }}){% endif %}</td></tr>
+  <tr><th>IDs</th><td>{% for k, v in before.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% else %}none{% endfor %}</td><td>{% for k, v in cand.ids.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% else %}none{% endfor %}</td></tr>
+</table>
+<p class="muted">This is exactly what MediaWrangler will send to {{ source.name }} (its key goes in a header and is not shown):</p>
+<pre class="fix-call"><strong>{{ method }}</strong> {{ address }}
+{{ body }}</pre>
+{% if source.type == "jellyfin" %}<p class="muted small">Jellyfin downloads the show's details and images again before it answers, which can take a minute or two for a long show. Keep this window open.</p>{% endif %}
+<p class="muted small">Only {{ source.name }}'s own entry changes. No files are touched, and watched history is not changed. The change is recorded in the audit log.</p>
+{% if not writes_on %}<div class="flash warn">Writes to your apps are off or paused, so this will be refused. Turn them on under <a href="/settings/writes">Settings → Writes</a> first.</div>{% endif %}
+<div class="row">
+  <button type="button" hx-get="/fix/{{ item.id }}/search?q={{ q | urlencode }}" hx-target="#fix-body">Back</button>
+  <form hx-post="/fix/{{ item.id }}/apply" hx-target="#fix-body" hx-disabled-elt="find button" class="inline">
+    <input type="hidden" name="candidate" value='{{ candidate_json }}'>
+    <button type="submit" class="primary">Change in {{ source.name }}</button>
+  </form>
+</div>

@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}{{ row.name }}{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+<p><a href="/physical?group={{ current.id }}">← {{ current.name }}</a></p>
+<div class="title-row">
+  <h1>{{ row.name }}</h1>
+  <div class="app-links" hx-get="/physical/folder/links?group={{ current.id }}&folder={{ row.folder | urlencode }}" hx-trigger="load" hx-swap="innerHTML"></div>
+</div>
+<p class="muted"><code>{{ row.folder }}</code></p>
+
+{% for col in view.columns if col.id in orphans %}{% set found = orphans[col.id] %}
+{% if col.id in importable %}<div class="card-pair">{% endif %}
+<section class="card">
+  <h2>{{ found | length }} {{ "file" if found | length == 1 else "files" }} on disk that {{ col.name }} has no record of</h2>
+  <p class="muted">{{ col.name }} tracks this folder but is not using {{ "it" if found | length == 1 else "them" }}: usually a second copy of an episode or film it already has, or a file it could not match. Moving {{ "it" if found | length == 1 else "them" }} to the trash is reversible for 30 days (it needs File changes switched on in Settings → Writes). Check {{ "it" if found | length == 1 else "each" }} first.</p>
+  <form hx-post="/fix/trash/preview" hx-target="#fix-body" hx-disabled-elt="find button">
+    <input type="hidden" name="group" value="{{ current.id }}"><input type="hidden" name="source" value="{{ col.id }}">
+    <input type="hidden" name="folder" value="{{ row.folder }}">
+    {% if found | length > 1 %}<label class="check check-all"><input type="checkbox" data-check-all> <strong>Check all</strong> <span class="muted small">({{ found | length }} files)</span></label>{% endif %}
+    {% for line in found %}{% set full = row.folder ~ "/" ~ line.path %}<label class="check"><input type="checkbox" name="path" value="{{ full }}"{% if full in busy %} disabled{% endif %}>{% if full in busy %} <span class="tag deleting">deleting…</span>{% endif %} <code class="small">{{ line.path }}</code>{% set f = line.by_source.get(view.disk_id) %}{% if f and f.size %} <span class="muted small">{{ f.size | filesize }}</span>{% endif %}</label>
+    {% endfor %}
+    <div class="orphan-actions">
+      <button type="submit" class="danger" data-needs-checked disabled>Delete…</button>
+      <span class="muted small">Nothing is ticked to start with. You see exactly what will be removed before anything is, and it goes to the trash (kept 30 days), not straight to deletion.</span>
+    </div>
+  </form>
+  <details class="options"><summary>Or remove them yourself</summary>
+    <textarea readonly rows="{{ [found | length, 8] | min + 1 }}" class="mono" style="width:100%">{% for line in found %}rm -- '{{ row.folder }}/{{ line.path | replace("'", "'\\''") }}'
+{% endfor %}</textarea>
+  </details>
+</section>
+{% if col.id in importable %}{% set videos = importable[col.id] %}
+<section class="card">
+  <h2>Tell {{ col.name }} which episode {{ "it is" if videos | length == 1 else "one is" }}</h2>
+  <p class="muted">A file {{ col.name }} could not match is often an episode under the wrong name, such as a special saved as the next episode of a season. Pick the file, then the episode: {{ col.name }} moves it into the right season folder and names it itself. You see the exact call before anything is sent (it needs writes to your apps switched on in Settings → Writes).</p>
+  <form hx-get="/fix/import" hx-target="#fix-body" hx-disabled-elt="find button">
+    <input type="hidden" name="group" value="{{ current.id }}"><input type="hidden" name="source" value="{{ col.id }}">
+    <input type="hidden" name="folder" value="{{ row.folder }}">
+    {% for line in videos %}{% set full = row.folder ~ "/" ~ line.path %}<label class="check"><input type="radio" name="path" value="{{ full }}"{% if full in busy %} disabled{% elif videos | length == 1 %} checked{% endif %}> <code class="small">{{ line.path }}</code></label>
+    {% endfor %}
+    <div class="orphan-actions">
+      <button type="submit" data-needs-checked{% if videos | length != 1 %} disabled{% endif %}>Choose the episode…</button>
+    </div>
+  </form>
+</section>
+</div>
+{% endif %}
+{% endfor %}
+
+{% if odd %}
+<section class="card">
+  <h2>{{ odd | length }} unusual {{ "file" if odd | length == 1 else "files" }} in this folder</h2>
+  <p class="muted">A library holds video files. These are something else, so no app counts them. An archive such as <code>.zipx</code> or <code>.rar</code> in place of a video is a common fake release and can carry malware: <strong>do not open or extract it</strong>. A program or script never belongs here. MediaWrangler has not opened any of them. Moving them to the trash is reversible for 30 days (it needs File changes switched on in Settings → Writes).</p>
+  <form hx-post="/fix/trash/preview" hx-target="#fix-body" hx-disabled-elt="find button">
+    <input type="hidden" name="group" value="{{ current.id }}"><input type="hidden" name="source" value="0">
+    <input type="hidden" name="folder" value="{{ row.folder }}">
+    {% if odd | length > 1 %}<label class="check check-all"><input type="checkbox" data-check-all> <strong>Check all</strong></label>{% endif %}
+    {% for f in odd %}<label class="check"><input type="checkbox" name="path" value="{{ f.canonical_path }}"{% if f.canonical_path in busy %} disabled{% endif %}>{% if f.canonical_path in busy %} <span class="tag deleting">deleting…</span>{% endif %} <code class="small">{{ f.canonical_path[row.folder | length + 1:] }}</code> <span class="tag warn">{{ {"archive": "archive", "executable": "program or script", "incomplete": "unfinished download", "macos": "macOS stub"}.get(f.flag, f.flag) }}</span>{% if f.size is not none %} <span class="muted small">{{ f.size | filesize }}</span>{% endif %}</label>
+    {% endfor %}
+    <div class="orphan-actions">
+      <button type="submit" class="danger" data-needs-checked disabled>Delete…</button>
+      <span class="muted small">Nothing is ticked to start with. You see exactly what will be removed before anything is, and it goes to the trash (kept 30 days), not straight to deletion.</span>
+    </div>
+  </form>
+</section>
+{% endif %}
+
+<section class="card">
+  <h2>Files</h2>
+  <div class="table-wrap">
+  <table class="matrix striped">
+    <thead><tr><th>File</th>{% for col in view.columns %}<th class="s{{ loop.index0 % 2 }}">{{ dx.app(col) }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for line in lines if not (line.by_source.get(view.disk_id) and line.by_source[view.disk_id].flag) %}
+      <tr {% if line.extra %}class="muted"{% endif %}>
+        <td class="title"><span class="trunc" data-tip="{{ line.path }}" data-tip-truncated><code class="small">{{ line.path }}</code></span>{% if line.extra %} <span class="tag">extra</span>{% endif %}</td>
+        {% for col in view.columns %}{% set f = line.by_source.get(col.id) %}
+          <td class="cell s{{ loop.index0 % 2 }} {% if not f and not line.extra %}missing{% endif %}"><div class="pad">
+            {% if f %}<span class="status ok">✓</span>{% if f.quality %} <span class="small muted">{{ f.quality }}</span>{% endif %}{% if f.size %} <span class="small muted">{{ f.size | filesize }}</span>{% endif %}
+            {% elif not line.extra %}<span class="status bad">—</span>{% endif %}
+          </div></td>
+        {% endfor %}
+      </tr>
+    {% else %}
+      <tr><td class="muted">No files recorded in this folder.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,32 @@
+<div class="fix-head">
+  <h2>Change which {{ "film" if item.kind == "movie" else "show" }} {{ source.name }} thinks this is</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p class="muted">{{ source.name }} currently has this as <strong>{{ item.title }}</strong>{% if item.year %} ({{ item.year }}){% endif %}{% if ids %}, {% for k, v in ids.items() %}{{ k }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.
+  Search {{ source.name }}'s own metadata and choose the right show. Nothing changes until you confirm on the next step.</p>
+<form hx-get="/fix/{{ item.id }}/search" hx-target="#fix-body" hx-disabled-elt="find button" class="row">
+  <input name="q" value="{{ q }}" aria-label="Title to search for" autofocus>
+  <input name="year" value="{{ year or '' }}" size="5" placeholder="Year" aria-label="Year">
+  <button type="submit">Search</button>
+</form>
+{% if error %}<div class="flash error">{{ error }}</div>
+{% elif not candidates %}<p class="muted">{{ source.name }} found nothing for that search. Try a shorter title, or a different year.</p>
+{% else %}
+<ul class="fix-results">
+  {% for c in candidates %}
+  <li>
+    <div class="fix-main">
+      <strong>{{ c.data.title }}</strong>{% if c.data.year %} ({{ c.data.year }}){% endif %}
+      {% for name in c.agrees_with %}<span class="status ok">Same ID as {{ name }}</span>{% endfor %}
+      <div class="small muted">{{ c.ids_text }}{% if c.data.note %} · {{ c.data.note }}{% endif %}</div>
+      {% if c.data.overview %}<div class="small fix-overview">{{ c.data.overview }}</div>{% endif %}
+    </div>
+    <form hx-post="/fix/{{ item.id }}/preview" hx-target="#fix-body" hx-disabled-elt="find button">
+      <input type="hidden" name="q" value="{{ q }}">
+      <input type="hidden" name="candidate" value='{{ c.data | tojson }}'>
+      <button type="submit">Choose</button>
+    </form>
+  </li>
+  {% endfor %}
+</ul>
+{% endif %}

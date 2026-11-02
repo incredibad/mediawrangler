@@ -1,0 +1,68 @@
+{# Signed, colour-coded numbers for comparing an app with its reference (the master, or the
+   media share on Physical media). Fewer than the reference is red, more is amber, equal is a
+   green tick. Import as `dx`, with context (the star needs master_id):
+   {% import "_macros.html" as dx with context %} #}
+
+{# Tooltip: {% call dx.tip("Heading\nBody text") %}what to hover{% endcall %}. The first line is
+   the heading when the text has several; static/tooltip.js does the rest, so any element
+   with a data-tip attribute works the same way. Plain text only (it is never read as HTML). #}
+{% macro tip(text, cls="") -%}
+  <span class="tip {{ cls }}" tabindex="0" data-tip="{{ text }}">{{ caller() }}</span>
+{%- endmacro %}
+
+{# A source's name, with a star in front when it is the master. #}
+{% macro name(source_id, text) -%}
+  {%- if source_id == master_id %}<span class="star" data-tip="Master">★</span> {% endif %}{{ text }}
+{%- endmacro %}
+
+{# A table column's heading for an app: its name, linking to the app's own web UI. #}
+{% macro app(src) -%}
+  {%- if src.base_url and src.base_url.startswith("http") -%}
+  <a class="app-link" href="{{ src.base_url }}" target="_blank" rel="noopener" data-tip="Open {{ src.name }}">{{ name(src.id, src.name) }}</a>
+  {%- else %}{{ name(src.id, src.name) }}{% endif -%}
+{%- endmacro %}
+
+{# The heading used everywhere an app is introduced: ★ Name [connector type]. #}
+{% macro head(src) -%}
+  {{ name(src.id, src.name) }} <span class="tag">{{ connector_label(src.type) }}</span>
+{%- endmacro %}
+
+{% macro delta(value, ref, name, small=false) -%}
+  {%- set d = value - ref -%}
+  {%- set cls = "diff sm" if small else "diff" -%}
+  {%- if d > 0 -%}<span class="{{ cls }} warn" data-tip="{{ '{:,}'.format(d) }} more than {{ name }}">+{{ "{:,}".format(d) }}</span>
+  {%- elif d < 0 -%}<span class="{{ cls }} bad" data-tip="{{ '{:,}'.format(-d) }} fewer than {{ name }}">−{{ "{:,}".format(-d) }}</span>
+  {%- else -%}<span class="{{ cls }} ok" data-tip="same as {{ name }}">✓</span>{%- endif -%}
+{%- endmacro %}
+
+{# Only when both numbers exist (an app that doesn't report this kind of count shows nothing). #}
+{% macro delta_if(value, ref, name) -%}
+  {%- if value and ref %} {{ delta(value, ref, name, true) }}{% endif -%}
+{%- endmacro %}
+
+{% macro delta_size(value, ref, name, small=false) -%}
+  {%- set d = value - ref -%}
+  {%- set cls = "diff sm" if small else "diff" -%}
+  {%- if d > 0 -%}<span class="{{ cls }} warn" data-tip="{{ d | filesize }} more than {{ name }}">+{{ d | filesize }}</span>
+  {%- elif d < 0 -%}<span class="{{ cls }} bad" data-tip="{{ (-d) | filesize }} less than {{ name }}">−{{ (-d) | filesize }}</span>
+  {%- else -%}<span class="{{ cls }} ok" data-tip="same as {{ name }}">✓</span>{%- endif -%}
+{%- endmacro %}
+
+{# A count of things the app lacks (sign −, red) or has extra (sign +, amber), as a filter link. #}
+{% macro diff_link(n, sign, label, href, filter, source=none) -%}
+  {%- if n -%}<a href="{{ href }}" class="num {{ 'bad' if sign == '−' else 'warn' }}" data-set-filter="{{ filter }}"{% if source %} data-set-source="{{ source }}"{% endif %}>{{ sign }}{{ "{:,}".format(n) }}</a> {{ label }}
+  {%- else -%}<span class="muted">0 {{ label }}</span>{%- endif -%}
+{%- endmacro %}
+
+{# A row in an app's summary box: label on the left, the figure on the right. Use with
+   {% call dx.stat("Label") %}figure{% endcall %}; key=true makes it the big one. #}
+{% macro stat(label, key=false) -%}
+  <div class="stat{{ ' key' if key }}"><span class="stat-label">{{ label }}</span><span class="stat-val">{{ caller() }}</span></div>
+{%- endmacro %}
+
+{# A figure that filters the table when it is not zero: signed and coloured (− red, + amber),
+   or plain. #}
+{% macro count_link(n, sign, href, filter, source=none) -%}
+  {%- if n -%}<a href="{{ href }}" class="num {{ 'bad' if sign == '−' else ('warn' if sign == '+' else '') }}" data-set-filter="{{ filter }}"{% if source %} data-set-source="{{ source }}"{% endif %}>{{ sign }}{{ "{:,}".format(n) }}</a>
+  {%- else -%}<span class="muted">0</span>{%- endif -%}
+{%- endmacro %}

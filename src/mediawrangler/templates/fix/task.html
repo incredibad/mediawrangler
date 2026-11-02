@@ -1,0 +1,21 @@
+<div class="fix-head">
+  <h2>{{ p.title }}?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p><strong>{{ p.name }}</strong></p>
+<p>{{ p.explanation }}</p>
+<p class="muted">This is exactly what MediaWrangler will send to {{ p.source.name }} (its key goes in a header and is not shown):</p>
+<pre class="fix-call"><strong>{{ method }}</strong> {{ address }}{% if body %}
+{{ body }}{% endif %}</pre>
+<p class="muted small">The request is recorded in the audit log.</p>
+{% if not writes_on %}<div class="flash warn">Writes to your apps are off or paused, so this will be refused. Turn them on under <a href="/settings/writes">Settings → Writes</a> first.</div>{% endif %}
+<div class="row">
+  <button type="button" data-close>Cancel</button>
+  <form hx-post="/fix/folder-task" hx-target="#fix-body" hx-disabled-elt="find button" class="inline">
+    <input type="hidden" name="group" value="{{ group_id }}">
+    <input type="hidden" name="source" value="{{ p.source.id }}">
+    <input type="hidden" name="folder" value="{{ p.folder }}">
+    <input type="hidden" name="kind" value="{{ p.kind }}">
+    <button type="submit" class="primary">{{ p.title }}</button>
+  </form>
+</div>

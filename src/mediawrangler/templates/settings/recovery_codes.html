@@ -1,0 +1,14 @@
+{% extends "settings/_layout.html" %}
+{% block title %}Recovery codes{% endblock %}
+{% block settings %}
+<section class="card">
+  {% if just_enabled %}<div class="flash ok">Two-factor authentication is on.</div>{% endif %}
+  <h2>Your recovery codes</h2>
+  <p>Each code works once, in place of an authenticator code. <strong>They won't be shown again.</strong>
+    Store them somewhere safe, like your password manager.</p>
+  <ul class="codes">
+    {% for code in codes %}<li><code>{{ code }}</code></li>{% endfor %}
+  </ul>
+  <a class="button primary" href="/settings/security">I've saved them</a>
+</section>
+{% endblock %}

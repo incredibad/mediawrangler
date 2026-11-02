@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+{% block title %}Activity{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+<h1>Activity</h1>
+<nav class="subnav">
+  {% for key, label in tabs.items() %}<a href="/activity?tab={{ key }}" {% if key == tab %}aria-current="page"{% endif %}>{{ label }}</a>{% endfor %}
+</nav>
+<section class="card">
+  {% if tab == "audit" %}
+  {% set day = view.summary %}
+  <p class="muted">Last 24 hours: {{ day.get("in", 0) }} received from apps; sent to apps:
+    <span class="status c-lime">{{ day.get("applied", 0) }} written</span>
+    <span class="status c-blue">{{ day.get("replaced", 0) }} replaced files</span>
+    <span class="status c-brown">{{ day.get("skipped", 0) }} skipped</span>
+    <span class="status c-red">{{ day.get("error", 0) }} errors</span>
+    <br><span class="small">Everything MediaWrangler hears from the apps and everything it does to them, newest first. "Replaced file" means the app swapped the item for a new one (an upgrade), so the write was dropped and the library re-read. Skipped writes were cancelled before sending because they no longer made sense. Nothing here is ever deleted.</span></p>
+  {% endif %}
+  {% include "_filterbar.html" %}
+  {% if view.truncated %}<p class="muted small">Showing the newest {{ "{:,}".format(view.rows | length) }} only.</p>{% endif %}
+  <div class="table-wrap">
+  <table id="activity-table"{% if tab == "audit" %} class="matrix striped"{% endif %}>
+    {% if tab == "runs" %}
+    <thead><tr><th>Started</th><th>App</th><th>Sync</th><th>Started by</th><th>Result</th><th>Took</th><th>Details</th></tr></thead>
+    <tbody>
+    {% for row in view.rows %}{% set run = row.data %}
+      <tr data-flags="{{ row.flags | sort | join(' ') }}" data-search="{{ row.search }}" {% if loop.index0 not in visible %}hidden{% endif %}>
+        <td>{{ run.started_at | localtime("%d %b %H:%M") }}</td>
+        <td>{{ row.extra.source.name }}</td>
+        <td>{{ "Watch state" if run.mode == "watch" else "Full" }}</td>
+        <td>{{ run.trigger }}</td>
+        <td>{% if run.status == "ok" %}<span class="status ok">OK</span>{% elif run.status == "running" %}<span class="status unknown">Running</span>{% else %}<span class="status bad">Failed</span>{% endif %}</td>
+        <td>{% if run.stats and run.stats.seconds is defined %}{{ run.stats.seconds }}s{% else %}—{% endif %}</td>
+        <td class="small">
+          {% if run.error %}<span class="muted">{{ run.error[:200] }}</span>
+          {% elif run.stats %}{% if run.stats.added or run.stats.removed %}+{{ run.stats.added }} / −{{ run.stats.removed }} items{% endif %}
+            {% if run.stats.watch %} {{ run.stats.watch.events }} watch {{ "change" if run.stats.watch.events == 1 else "changes" }}{% endif %}{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+        {% else %}
+    <thead><tr><th></th><th></th><th>App</th><th>User</th><th>Title</th><th>Action</th><th>Details</th><th>Result</th></tr></thead>
+    <tbody>
+    {% for row in view.rows %}
+      <tr data-flags="{{ row.flags | sort | join(' ') }}" data-search="{{ row.search }}" {% if loop.index0 not in visible %}hidden{% endif %}>
+        {% if "in" in row.flags %}{% set ev = row.data %}
+        <td class="nowrap">{{ ev.at | localtime("%d %b %H:%M:%S") }}</td>
+        <td class="muted nowrap">Received</td>
+        <td>{{ row.extra.source.name }}</td>
+        <td>{{ row.extra.who }}</td>
+        <td class="title">{{ row.extra.title }}</td>
+        <td class="nowrap">{% if ev.kind == "played" %}<span class="status c-green">Played</span>{% elif ev.kind == "unplayed" %}<span class="status c-pink">Unplayed</span>{% else %}<span class="status c-amber">Progress</span>{% if ev.position_seconds %} <span class="muted small">{{ (ev.position_seconds // 60) | int }} min</span>{% endif %}{% endif %}</td>
+        <td class="muted"><span class="trunc why" tabindex="0" data-tip="{{ row.extra.why }}" data-tip-truncated>{{ row.extra.why }}</span></td>
+        <td class="nowrap">{% if row.extra.echo %}<span class="status c-grey">Ignored</span>{% else %}<span class="status c-sky">Recorded</span>{% endif %}</td>
+        {% else %}{% set a = row.data %}
+        <td class="nowrap">{{ a.at | localtime("%d %b %H:%M:%S") }}</td>
+        <td class="muted nowrap">Sent</td>
+        <td>{{ a.source_name }}</td>
+        <td>{{ a.user_name }}</td>
+        <td class="title">{{ a.label }}</td>
+        <td class="nowrap">{% if a.op == "played" %}<span class="status c-teal">Marked watched</span>{% elif a.op == "unplayed" %}<span class="status c-orange">Marked unwatched</span>{% elif a.op == "account" %}<span class="status c-purple">Created account</span>{% elif a.op == "match" %}<span class="status c-indigo">Changed match</span>{% elif a.op in ("scan", "refresh", "add", "override", "import", "forget", "trash", "restore", "purge") %}<span class="status c-rose">{{ {"add": "Added to app", "override": "Told app what a folder is", "import": "Imported as an episode", "forget": "Told app a folder is gone", "trash": "Moved to trash", "restore": "Put back", "purge": "Deleted from trash"}.get(a.op, "Asked to look again") }}</span>{% else %}<span class="status c-grey">{{ a.op }}</span>{% endif %}</td>
+        <td class="muted">{% if row.extra.why %}<span class="trunc why" tabindex="0" data-tip="{{ row.extra.why }}" data-tip-truncated>{{ row.extra.why }}</span>{% endif %}</td>
+        <td class="nowrap">
+          {% if a.result == "applied" %}<span class="status c-lime">Done</span>
+          {% elif a.result == "replaced" %}<span class="status c-blue">Replaced file</span>
+          {% elif a.result == "skipped" %}<span class="status c-brown">Skipped</span>
+          {% else %}<span class="status c-red">Error</span>{% endif %}
+          {% if a.detail and a.result == "error" %}<span class="trunc why muted small" tabindex="0" data-tip="{{ a.detail }}" data-tip-truncated>{{ a.detail }}</span>{% endif %}
+        </td>
+        {% endif %}
+      </tr>
+    {% endfor %}
+        {% endif %}
+    {% set colspan = 7 if tab == "runs" else 8 %}
+    {% include "_emptyrow.html" %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="/static/table-filter.js?v={{ version }}" defer></script>{% endblock %}

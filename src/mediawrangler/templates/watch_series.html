@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% import "_macros.html" as dx with context %}
+{% block title %}{{ canon.title }} · {{ person.name }}{% endblock %}
+{% block main_class %}page wide{% endblock %}
+{% block content %}
+<p><a href="/watch?user={{ person.id }}&group={{ current.id }}">← {{ person.name }} · {{ current.name }}</a></p>
+<h1>{{ canon.title }}{% if canon.year %} <span class="muted">({{ canon.year }})</span>{% endif %}</h1>
+<section class="card">
+  <div class="table-wrap">
+  <table class="matrix striped">
+    <thead><tr><th>Episode</th>{% for col in view.columns %}<th class="s{{ loop.index0 % 2 }}">{{ dx.app(col.source) }}</th>{% endfor %}</tr></thead>
+    <tbody>
+    {% for line in lines %}
+      <tr {% if line.differs %}class="differs"{% endif %}>
+        <td class="title"><span class="trunc" data-tip="S{{ '%02d' % line.season }}E{{ '%02d' % line.episode }} {{ line.title or '' }}" data-tip-truncated><code>S{{ "%02d" % line.season }}E{{ "%02d" % line.episode }}</code> {{ line.title or "" }}</span>
+          {% if line.differs %}<span class="tag warn">differs</span>{% endif %}</td>
+        {% for col in view.columns %}{% set avail, w = line.cells[col.source.id] %}
+          <td class="cell s{{ loop.index0 % 2 }} {% if line.differs and avail and not (w and w.played) %}missing{% endif %}"><div class="pad">
+            {% if not avail %}<span class="muted">not in app</span>
+            {% elif w and w.played %}<span class="status ok">Played</span>{% if w.last_played_at %} <span class="small muted">{{ w.last_played_at | localtime("%Y-%m-%d") }}</span>{% endif %}
+            {% elif w and w.in_progress %}<span class="status unknown">{{ ((w.position or 0) / 60) | round | int }} min in</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </div></td>
+        {% endfor %}
+      </tr>
+    {% else %}
+      <tr><td class="muted">No episodes.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</section>
+{% endblock %}

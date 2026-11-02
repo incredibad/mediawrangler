@@ -1,0 +1,24 @@
+<div class="fix-head">
+  <h2>Rescan this show in every app?</h2>
+  <button type="button" class="link" data-close aria-label="Close">✕</button>
+</div>
+<p><strong>{{ name }}</strong></p>
+<p class="muted">For files that arrived or changed outside the apps. MediaWrangler reads this folder on the share again, then asks each app below that has the title to rescan just this folder, and reads the show from each until it matches the share. Nothing is moved or deleted, and no other show is touched.</p>
+<ol>
+  <li>Read this folder on the share (nothing is sent to any app).</li>
+  {% for st in steps %}
+  <li>{% if st.skip %}<strong>{{ st.app }}</strong>: <span class="muted">skipped, {{ st.skip }}</span>{% else %}Ask <strong>{{ st.app }}</strong>:
+    <pre class="fix-call"><strong>{{ st.method }}</strong> {{ st.address }}{% if st.body %}
+{{ st.body }}{% endif %}</pre>{% endif %}</li>
+  {% endfor %}
+</ol>
+<p class="muted small">The requests are recorded in the audit log. Each app's key goes in a header and is not shown.</p>
+{% if not writes_on %}<div class="flash warn">Writes to your apps are off or paused, so this will be refused. Turn them on under <a href="/settings/writes">Settings → Writes</a> first.</div>{% endif %}
+<div class="row">
+  <button type="button" data-close>Cancel</button>
+  <form hx-post="/fix/rescan-all" hx-target="#fix-body" hx-disabled-elt="find button" class="inline">
+    <input type="hidden" name="group" value="{{ group.id }}">
+    <input type="hidden" name="folder" value="{{ folder }}">
+    <button type="submit" class="primary">Rescan in every app</button>
+  </form>
+</div>
