@@ -144,7 +144,9 @@ def test_schedule_fields_validate_and_save(synced, logged_in, app):  # noqa: F81
     )
     page = logged_in.get(url).text
     assert 'name="quick_every" value="15"' in page and 'name="schedule_at" value="04:00"' in page
-    assert "Watch-state sync" in logged_in.get("/").text
+    # The 04:00 full sync comes first in the quarter hour before it, so ask which is next.
+    label = "Watch-state sync" if next_run(db, jf)[0] == "quick" else "Full sync"
+    assert label in logged_in.get("/").text
     hours = post(
         logged_in,
         url,
