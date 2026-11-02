@@ -134,7 +134,13 @@ SILO_FAIL: set[str] = set()  # content ids whose write fails
 
 JF_GONE: set[str] = set()  # item ids Jellyfin no longer has (a replaced file)
 
-JF_USERS = [{"Id": "u-user1", "Name": "user1"}, {"Id": "u-al", "Name": "user2"}]
+JF_USERS = [
+    {"Id": "u-user1", "Name": "user1", "Policy": {"IsAdministrator": True}},
+    {"Id": "u-al", "Name": "user2"},
+]
+# Items Jellyfin leaves out of a library read made without a userId (filed under the
+# library's folder rather than the library), as a real server did.
+JF_NEEDS_USER = {"jf-heat"}
 
 
 def _jf_watch(id_, played=True, position_ticks=0, last="2026-10-20T10:00:00.1234567Z"):
@@ -194,7 +200,7 @@ def jellyfin_handler(page_size: int = 2):
                     "TotalRecordCount": len(wanted),
                 },
             )
-        if request.url.path == "/Items" and "userId" in request.url.query.decode():
+        if request.url.path == "/Items" and "Filters" in request.url.query.decode():
             q = parse_qs(request.url.query.decode())
             played = q["Filters"][0] == "IsPlayed"
             rows = [
@@ -208,6 +214,8 @@ def jellyfin_handler(page_size: int = 2):
         if request.url.path == "/Items":
             q = parse_qs(request.url.query.decode())
             rows = JF_ITEMS[(q["ParentId"][0], q["IncludeItemTypes"][0])]
+            if "userId" not in q:
+                rows = [r for r in rows if r["Id"] not in JF_NEEDS_USER]
             start = int(q["StartIndex"][0])
             rows = unsorted(rows, q, start)
             limit = min(int(q["Limit"][0]), page_size)  # force paging in tests

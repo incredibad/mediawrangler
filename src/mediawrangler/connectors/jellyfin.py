@@ -300,11 +300,29 @@ class JellyfinConnector(Connector):
             for v in self._get_json("/Library/VirtualFolders")
         ]
 
+    def _as_admin(self) -> dict[str, str]:
+        """userId of an admin who sees every library, for reading a library by ParentId.
+        Asked with the API key alone, Jellyfin can leave out items it filed under the
+        library's folder instead of the library itself (one server: 674 of 1,176 films)."""
+        if not hasattr(self, "_admin"):
+            self._admin = next(
+                (
+                    u["Id"]
+                    for u in self._get_json("/Users")
+                    if (p := u.get("Policy") or {}).get("IsAdministrator")
+                    and not p.get("IsDisabled")
+                    and p.get("EnableAllFolders") is not False
+                ),
+                None,
+            )
+        return {"userId": self._admin} if self._admin else {}
+
     def _items(self, library_id: str, item_type: str) -> Iterator[dict[str, Any]]:
         start = 0
         while True:
             page = self._get_json(
                 "/Items",
+                **self._as_admin(),
                 ParentId=library_id,
                 Recursive="true",
                 IncludeItemTypes=item_type,
@@ -417,7 +435,7 @@ class JellyfinConnector(Connector):
             "Limit": 50,
         }
         if library_external_id:
-            params["ParentId"] = library_external_id
+            params.update(self._as_admin(), ParentId=library_external_id)
         folder = path.rstrip("/")
         return [
             raw["Id"]
