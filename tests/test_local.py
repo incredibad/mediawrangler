@@ -192,7 +192,7 @@ def test_one_person_failing_does_not_stop_everyone_elses_local(synced, monkeypat
     db, *_ = synced
     called = []
 
-    def catch_up(session, person):
+    def catch_up(session, person, keys_of):
         called.append(person.name)
         if person.name == "user1":
             raise RuntimeError("one person's batch is broken")
