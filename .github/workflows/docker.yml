@@ -1,6 +1,6 @@
 # Tests, then builds and pushes the image to Docker Hub.
 #   main → incredibad/mediawrangler:latest and :<version from pyproject.toml>
-#   dev  → incredibad/mediawrangler:dev
+#   dev  → incredibad/mediawrangler:dev (amd64 only, for speed)
 # Needs repository secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN (a Docker Hub access token).
 name: Docker image
 
@@ -36,10 +36,13 @@ jobs:
           version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
           if [ "$GITHUB_REF_NAME" = main ]; then
             echo "tags=$image:latest,$image:$version" >> "$GITHUB_OUTPUT"
+            echo "platforms=linux/amd64,linux/arm64" >> "$GITHUB_OUTPUT"
           else
             echo "tags=$image:dev" >> "$GITHUB_OUTPUT"
+            echo "platforms=linux/amd64" >> "$GITHUB_OUTPUT"
           fi
       - uses: docker/setup-qemu-action@v3
+        if: github.ref_name == 'main'
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
         with:
@@ -49,7 +52,7 @@ jobs:
         with:
           context: .
           target: runtime
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ steps.tags.outputs.platforms }}
           push: true
           tags: ${{ steps.tags.outputs.tags }}
           cache-from: type=gha
