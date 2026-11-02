@@ -15,66 +15,66 @@ from .test_watch import _person
 from .test_watch import synced as synced  # re-exported: pytest finds fixtures by module
 
 
-def _import_unknown_show(db, alex):
+def _import_unknown_show(db, user1):
     recs = parse_trakt(
         _trakt_zip(
             episodes=[("Not In Any App", 5, 55, 1, 1), ("Not In Any App", 5, 55, 1, 2)],
             movies=[("Not In Any Film", 777)],
         )
     )
-    apply_import(db, alex.id, "trakt", "t.zip", recs)
+    apply_import(db, user1.id, "trakt", "t.zip", recs)
 
 
-def _held(db, alex, title):
+def _held(db, user1, title):
     cid = db.execute(select(CanonicalItem.id).where(CanonicalItem.title == title)).scalar()
     states = db.execute(
-        select(LocalState).where(LocalState.app_user_id == alex.id, LocalState.canonical_id == cid)
+        select(LocalState).where(LocalState.app_user_id == user1.id, LocalState.canonical_id == cid)
     ).scalars()
     return cid, sorted((s.season, s.episode, s.played) for s in states)
 
 
 def test_a_title_no_app_has_gets_a_canonical_item_and_plays_in_local(synced):
     db, *_ = synced
-    alex = _person(db, "alex")
-    _import_unknown_show(db, alex)
-    assert adopt_imports(db, alex, {}) == 2  # the show and the film
-    cid, states = _held(db, alex, "Not In Any App")
+    user1 = _person(db, "user1")
+    _import_unknown_show(db, user1)
+    assert adopt_imports(db, user1, {}) == 2  # the show and the film
+    cid, states = _held(db, user1, "Not In Any App")
     assert cid > 0 and states == [(1, 1, True), (1, 2, True)]
     assert db.execute(select(CanonicalItem.key).where(CanonicalItem.id == cid)).scalar() == (
         "series:tvdb:5"
     )
-    assert _held(db, alex, "Not In Any Film")[1] == [(0, 0, True)]
+    assert _held(db, user1, "Not In Any Film")[1] == [(0, 0, True)]
     plays = db.execute(select(LocalPlay).where(LocalPlay.canonical_id == cid)).scalars().all()
     assert plays and all(p.sources == "Trakt" for p in plays)
     # Running it again changes nothing.
     n = len(db.execute(select(LocalPlay)).scalars().all())
-    assert adopt_imports(db, alex, {}) == 0
+    assert adopt_imports(db, user1, {}) == 0
     assert len(db.execute(select(LocalPlay)).scalars().all()) == n
 
 
 def test_a_new_import_is_folded_in_once(synced):
     db, *_ = synced
-    alex = _person(db, "alex")
-    assert adopt_new_imports(db, alex, {}) == 0  # no files yet
-    _import_unknown_show(db, alex)
-    assert adopt_new_imports(db, alex, {}) == 2
-    assert adopt_new_imports(db, alex, {}) == 0  # same files: nothing to do
-    assert _held(db, alex, "Not In Any App")[1]
+    user1 = _person(db, "user1")
+    assert adopt_new_imports(db, user1, {}) == 0  # no files yet
+    _import_unknown_show(db, user1)
+    assert adopt_new_imports(db, user1, {}) == 2
+    assert adopt_new_imports(db, user1, {}) == 0  # same files: nothing to do
+    assert _held(db, user1, "Not In Any App")[1]
 
 
 def test_matching_does_not_clean_away_what_local_holds(synced):
     db, *_ = synced
-    alex = _person(db, "alex")
-    _import_unknown_show(db, alex)
-    adopt_imports(db, alex, {})
-    before = _held(db, alex, "Not In Any App")
+    user1 = _person(db, "user1")
+    _import_unknown_show(db, user1)
+    adopt_imports(db, user1, {})
+    before = _held(db, user1, "Not In Any App")
     run_matching(db, source_order(db))  # no app has the show, so nothing points at it
-    assert _held(db, alex, "Not In Any App") == before
+    assert _held(db, user1, "Not In Any App") == before
 
 
 def test_local_follows_when_an_app_gets_the_title_under_another_key(synced):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     sherlock = db.execute(select(CanonicalItem).where(CanonicalItem.title == "Sherlock")).scalar()
     ghost = CanonicalItem(
         key="series:import:sherlock:2010",
@@ -87,12 +87,12 @@ def test_local_follows_when_an_app_gets_the_title_under_another_key(synced):
     db.flush()
     db.add(
         LocalState(
-            app_user_id=alex.id, kind="ep", canonical_id=ghost.id, season=9, episode=9, played=True
+            app_user_id=user1.id, kind="ep", canonical_id=ghost.id, season=9, episode=9, played=True
         )
     )
     db.add(
         LocalEvent(
-            app_user_id=alex.id,
+            app_user_id=user1.id,
             kind="ep",
             canonical_id=ghost.id,
             season=9,

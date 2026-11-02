@@ -124,7 +124,7 @@ func TestParseSettings(t *testing.T) {
 		switchKey("scan.completed"):     true,
 		switchKey("job.failed"):         false,
 		"evt_not__a__real__event":       true,
-		"profiles":                      "alex, Jordan\nabc-123;",
+		"profiles":                      "user1, user2\nabc-123;",
 		"silo_url":                      "http://localhost:8090/",
 	})
 	if err != nil {
@@ -136,7 +136,7 @@ func TestParseSettings(t *testing.T) {
 	if !s.Events["user_state.changed"] || !s.Events["scan.completed"] || s.Events["job.failed"] || len(s.Events) != 2 {
 		t.Fatalf("events = %v", s.Events)
 	}
-	if strings.Join(s.Profiles, "|") != "alex|Jordan|abc-123" {
+	if strings.Join(s.Profiles, "|") != "user1|user2|abc-123" {
 		t.Fatalf("profiles = %v", s.Profiles)
 	}
 	for _, bad := range []string{"ftp://x/y", "not a url", "http://"} {
@@ -280,9 +280,9 @@ func TestProfileFilterByIDAndByName(t *testing.T) {
 		case "/api/v2/admin/users":
 			_, _ = w.Write([]byte(`{"items":[{"id":"1"},{"id":"2"}]}`))
 		case "/api/v2/admin/users/1/profiles":
-			_, _ = w.Write([]byte(`{"items":[{"id":"p-alex","name":"alex"}]}`))
+			_, _ = w.Write([]byte(`{"items":[{"id":"p-user1","name":"user1"}]}`))
 		case "/api/v2/admin/users/2/profiles":
-			_, _ = w.Write([]byte(`{"items":[{"id":"p-ali","name":"Jordan"}]}`))
+			_, _ = w.Write([]byte(`{"items":[{"id":"p-ali","name":"user2"}]}`))
 		default:
 			w.WriteHeader(404)
 		}
@@ -312,9 +312,9 @@ func TestProfileFilterByIDAndByName(t *testing.T) {
 	}
 
 	// By name, with the Silo API to resolve it; the webhook then carries the name.
-	c = newTestConsumer(Settings{URL: srv.URL, Events: events, Profiles: []string{"jORDAN"}, SiloURL: api.URL, SiloAPIKey: "key123"})
+	c = newTestConsumer(Settings{URL: srv.URL, Events: events, Profiles: []string{"USER2"}, SiloURL: api.URL, SiloAPIKey: "key123"})
 	before := len(got())
-	send(c, "user_state.changed", "p-alex")
+	send(c, "user_state.changed", "p-user1")
 	send(c, "user_state.changed", "p-ali")
 	reqs := got()[before:]
 	if len(reqs) != 1 {
@@ -322,7 +322,7 @@ func TestProfileFilterByIDAndByName(t *testing.T) {
 	}
 	var body Body
 	_ = json.Unmarshal(reqs[0].body, &body)
-	if body.Profile == nil || body.Profile.Name != "Jordan" {
+	if body.Profile == nil || body.Profile.Name != "user2" {
 		t.Fatalf("profile = %+v", body.Profile)
 	}
 	if apiCalls == 0 || apiCalls > 6 {
@@ -330,9 +330,9 @@ func TestProfileFilterByIDAndByName(t *testing.T) {
 	}
 
 	// Names without an API key cannot match.
-	c = newTestConsumer(Settings{URL: srv.URL, Events: events, Profiles: []string{"alex"}})
+	c = newTestConsumer(Settings{URL: srv.URL, Events: events, Profiles: []string{"user1"}})
 	before = len(got())
-	send(c, "user_state.changed", "p-alex")
+	send(c, "user_state.changed", "p-user1")
 	after := got()[before:]
 	var warn Body
 	if len(after) != 1 {
@@ -366,9 +366,9 @@ func TestWarnsWhenProfileNamesCannotBeLookedUp(t *testing.T) {
 	}
 
 	// A name with a key Silo refuses: the event is held back, and the receiver is told once.
-	c := newTestConsumer(Settings{URL: srv.URL, Events: events, Profiles: []string{"alex"}, SiloURL: deny.URL, SiloAPIKey: "bad"})
-	send(c, "p-alex")
-	send(c, "p-alex")
+	c := newTestConsumer(Settings{URL: srv.URL, Events: events, Profiles: []string{"user1"}, SiloURL: deny.URL, SiloAPIKey: "bad"})
+	send(c, "p-user1")
+	send(c, "p-user1")
 	if got := names(); len(got) != 1 || got[0] != warningEvent {
 		t.Fatalf("requests = %v, want one %s", got, warningEvent)
 	}
@@ -379,15 +379,15 @@ func TestWarnsWhenProfileNamesCannotBeLookedUp(t *testing.T) {
 	}
 	// ...and again after the quiet period.
 	c.now = func() time.Time { return time.Date(2026, 10, 27, 1, 20, 0, 0, time.UTC) }
-	send(c, "p-alex")
+	send(c, "p-user1")
 	if len(got()) != 2 {
 		t.Fatalf("requests = %d, want a second warning after 10 minutes", len(got()))
 	}
 
 	// Names but no Silo URL and key at all: the same warning, naming the cause.
 	srv2, got2 := receiver(t, 204)
-	c = newTestConsumer(Settings{URL: srv2.URL, Events: events, Profiles: []string{"alex"}})
-	send(c, "p-alex")
+	c = newTestConsumer(Settings{URL: srv2.URL, Events: events, Profiles: []string{"user1"}})
+	send(c, "p-user1")
 	var w Body
 	_ = json.Unmarshal(got2()[0].body, &w)
 	if msg, _ := w.Data["message"].(string); !strings.Contains(msg, "no Silo URL and API key") {
@@ -422,7 +422,7 @@ func TestAccountIDsMayBeNumbersOrText(t *testing.T) {
 }
 
 func TestLooksLikeID(t *testing.T) {
-	if !looksLikeID("3f1c2b7a-5d4e-4a9b-8c6f-0e2d1a9b7c55") || looksLikeID("alex") || looksLikeID("3f1c2b7a-5d4e-4a9b-8c6f-0e2d1a9b7c5z") {
+	if !looksLikeID("3f1c2b7a-5d4e-4a9b-8c6f-0e2d1a9b7c55") || looksLikeID("user1") || looksLikeID("3f1c2b7a-5d4e-4a9b-8c6f-0e2d1a9b7c5z") {
 		t.Fatal("looksLikeID is wrong")
 	}
 }

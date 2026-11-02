@@ -43,7 +43,7 @@ Body:
   "delivery_id": "9f2c1d7e0b8a4c63a1e5d2f08b7c9a41",
   "timestamp": "2026-10-27T01:23:45Z",
   "version": 1,
-  "profile": { "id": "3f1c2b7a-5d4e-4a9b-8c6f-0e2d1a9b7c55", "name": "alex" },
+  "profile": { "id": "3f1c2b7a-5d4e-4a9b-8c6f-0e2d1a9b7c55", "name": "user1" },
   "data": {
     "change": "watched",
     "content_id": "episode-tvdb-366263-1-23",
@@ -133,7 +133,7 @@ If you limit events to profiles **by name** and the plugin cannot look the names
     "message": "looking up profile names in Silo failed: silo answered 403 for /api/v2/admin/users",
     "held_back": "user_state.changed",
     "for_profile": "3f1c2b7a-5d4e-4a9b-8c6f-0e2d1a9b7c55",
-    "profile_list": ["alex"],
+    "profile_list": ["user1"],
     "repeats_every": "10m0s"
   }
 }

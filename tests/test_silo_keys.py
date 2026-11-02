@@ -33,15 +33,15 @@ def _silo(db):
     return db.execute(select(Source).where(Source.type == "silo")).scalar_one()
 
 
-def _jordan(db):
+def _user2(db):
     return db.execute(
-        select(SourceUser).where(SourceUser.source_id == _silo(db).id, SourceUser.name == "Jordan")
+        select(SourceUser).where(SourceUser.source_id == _silo(db).id, SourceUser.name == "user2")
     ).scalar_one()
 
 
 def test_other_accounts_are_unreadable_until_a_key_is_made(synced, logged_in):
     db, *_ = synced
-    assert _jordan(db).watch_readable is False
+    assert _user2(db).watch_readable is False
     page = logged_in.get(f"/settings/connectors/{_silo(db).id}").text
     assert "Not readable" in page and "Make keys for 1 account" in page
 
@@ -58,14 +58,14 @@ def test_making_keys_stores_them_encrypted_and_reads_the_account(synced, logged_
     db, sync_all, _ = synced
     sid = _silo(db).id
     page = post(logged_in, f"/settings/connectors/{sid}/silo-keys/create").text
-    assert "Made keys for Jordan" in page
+    assert "Made keys for user2" in page
     app.state.syncs._pool.shutdown(wait=True)
     app.state.syncs._pool = ThreadPoolExecutor(1)
     db.expire_all()
     key = db.execute(select(SourceAccountKey)).scalar_one()
     assert key.account_id == "2" and key.key_id == "k2" and "key-2" not in key.key_enc
     assert app.state.box.decrypt(key.key_enc) == "key-2"
-    su = _jordan(db)
+    su = _user2(db)
     assert su.watch_readable is True and su.watch_synced_at is not None
     assert db.execute(select(WatchState).where(WatchState.source_user_id == su.id)).first()
     # Local folds in what Silo says about someone it already held. (A refresh may
@@ -76,7 +76,7 @@ def test_making_keys_stores_them_encrypted_and_reads_the_account(synced, logged_
     db.expire_all()
     assert db.get(LocalCursor, su.id) is not None
     plays = db.execute(
-        select(LocalPlay).where(LocalPlay.app_user_id == _person(db, "Jordan").id)
+        select(LocalPlay).where(LocalPlay.app_user_id == _person(db, "user2").id)
     ).scalars()
     assert any("Silo" in p.sources for p in plays)
     page = logged_in.get(f"/settings/connectors/{sid}").text
@@ -104,10 +104,10 @@ def test_a_key_deleted_in_silo_is_noticed_and_can_be_replaced_for_that_user(sync
     sync_all()
     db.expire_all()
     assert db.execute(select(SourceAccountKey)).scalar_one().state == "gone"
-    assert _jordan(db).watch_readable is False
+    assert _user2(db).watch_readable is False
     page = logged_in.get(f"/settings/connectors/{sid}").text
     assert "Its key is missing in Silo" in page and "Make a new key" in page
-    # One user's key: the preview names just her, and the new key replaces the old row.
+    # One user's key: the preview names just them, and the new key replaces the old row.
     preview = post(
         logged_in, f"/settings/connectors/{sid}/silo-keys/preview", {"account_id": "2"}
     ).text
@@ -116,7 +116,7 @@ def test_a_key_deleted_in_silo_is_noticed_and_can_be_replaced_for_that_user(sync
     _wait(app)
     db.expire_all()
     key = db.execute(select(SourceAccountKey)).scalar_one()
-    assert key.state == "ok" and _jordan(db).watch_readable is True
+    assert key.state == "ok" and _user2(db).watch_readable is True
 
 
 def test_a_leftover_key_we_do_not_hold_is_deleted_before_the_new_one(synced, logged_in):

@@ -41,8 +41,8 @@ def test_parse_time():
 
 def test_jellyfin_watch_reads_played_and_resumable():
     conn = JellyfinConnector(ConnectorConfig("http://jf", "k"), _mock(jellyfin_handler()))
-    (alex,) = [u for u in conn.users() if u.name == "alex"]
-    recs = {r.item_external_id: r for r in conn.fetch_watch(alex)}
+    (user1,) = [u for u in conn.users() if u.name == "user1"]
+    recs = {r.item_external_id: r for r in conn.fetch_watch(user1)}
     assert recs["jf-sh-1"].played and recs["jf-sh-1"].duration_seconds == 3600
     assert not recs["jf-poi-1"].played and recs["jf-poi-1"].position_seconds == 600
 
@@ -51,8 +51,8 @@ def test_silo_users_only_own_account_readable():
     conn = SiloConnector(ConnectorConfig("http://silo", "k"), _mock(SiloServer()))
     conn._ensure_profile()
     users = {u.name: u for u in conn.users()}
-    assert users["alex"].watch_readable and not users["Jordan"].watch_readable
-    recs = conn.fetch_watch(users["alex"])
+    assert users["user1"].watch_readable and not users["user2"].watch_readable
+    recs = conn.fetch_watch(users["user1"])
     assert {r.item_external_id for r in recs} == {"episode-tvdb-176941-1-1", "movie-imdb-tt0113277"}
     assert conn._profile_id == "p-1"  # restored after acting as the profile
 
@@ -114,18 +114,18 @@ def test_users_linked_by_name_and_watch_stored(synced):
     db, _, stats = synced
     jf_stats, silo_stats = stats
     assert jf_stats["watch"]["users"] == 2 and jf_stats["watch"]["played"] == 5
-    assert silo_stats["watch"]["readable"] == 1  # Jordan's Silo profile isn't readable
-    alex = _person(db, "alex")
-    links = db.execute(select(SourceUser).where(SourceUser.app_user_id == alex.id)).scalars().all()
+    assert silo_stats["watch"]["readable"] == 1  # user2's Silo profile isn't readable
+    user1 = _person(db, "user1")
+    links = db.execute(select(SourceUser).where(SourceUser.app_user_id == user1.id)).scalars().all()
     assert len(links) == 2
-    assert {p.name for p in db.execute(select(AppUser)).scalars()} == {"alex", "Jordan"}
+    assert {p.name for p in db.execute(select(AppUser)).scalars()} == {"user1", "user2"}
     # The first read is the baseline: nothing logged.
     assert db.execute(select(WatchEvent)).first() is None
 
 
 def test_watch_diff_series(synced):
     db, *_ = synced
-    view = build_watch_view(db, _person(db, "alex"), _group(db, "TV"))
+    view = build_watch_view(db, _person(db, "user1"), _group(db, "TV"))
     jf, silo = (c.source.id for c in view.columns if c.source.type != "local")
     rows = {r.canonical.title: r for r in view.rows}
     sherlock = rows["Sherlock"]
@@ -154,7 +154,7 @@ def test_watch_diff_series(synced):
 
 def test_watch_diff_movies_agree(synced):
     db, *_ = synced
-    view = build_watch_view(db, _person(db, "alex"), _group(db, "Movies"))
+    view = build_watch_view(db, _person(db, "user1"), _group(db, "Movies"))
     (heat,) = view.rows
     assert all(c.played for c in heat.cells.values()) and "differs" not in heat.flags
 
@@ -185,23 +185,23 @@ def test_movie_watched_in_any_copy_counts(synced):
             canonical_id=heat.canonical_id,
         )
     )
-    jf_tim = _source_user(db, "jellyfin", "alex")
+    jf_tim = _source_user(db, "jellyfin", "user1")
     db.execute(
         WatchState.__table__.update()
         .where(WatchState.source_user_id == jf_tim.id, WatchState.item_external_id == "jf-heat")
         .values(item_external_id="jf-heat-4k")
     )
     db.commit()
-    view = build_watch_view(db, _person(db, "alex"), _group(db, "Movies"))
+    view = build_watch_view(db, _person(db, "user1"), _group(db, "Movies"))
     (row,) = view.rows
     assert all(c.played for c in row.cells.values()) and "differs" not in row.flags
 
 
 def test_unreadable_silo_profile_reported(synced):
     db, *_ = synced
-    view = build_watch_view(db, _person(db, "Jordan"), _group(db, "TV"))
+    view = build_watch_view(db, _person(db, "user2"), _group(db, "TV"))
     assert [c.source.name for c in view.columns] == ["Jellyfin", "Local"]
-    assert [su.name for _src, su in view.unreadable] == ["Jordan"]
+    assert [su.name for _src, su in view.unreadable] == ["user2"]
 
 
 def age_holds(db, minutes=11):
@@ -213,9 +213,9 @@ def age_holds(db, minutes=11):
 
 def test_change_log_on_second_sync(synced, monkeypatch):
     db, sync_all, _ = synced
-    tim_watch = [w for w in fakes.JF_WATCH["u-alex"] if w["Id"] != "jf-sh-2"]  # unwatched
+    tim_watch = [w for w in fakes.JF_WATCH["u-user1"] if w["Id"] != "jf-sh-2"]  # unwatched
     tim_watch.append(fakes._jf_watch("jf-sh-3"))  # newly watched
-    monkeypatch.setitem(fakes.JF_WATCH, "u-alex", tim_watch)
+    monkeypatch.setitem(fakes.JF_WATCH, "u-user1", tim_watch)
     sync_all()
     db.expire_all()
     events = {(e.item_external_id, e.kind) for e in db.execute(select(WatchEvent)).scalars()}
@@ -230,7 +230,7 @@ def test_change_log_on_second_sync(synced, monkeypatch):
     db.expire_all()
     events = {(e.item_external_id, e.kind) for e in db.execute(select(WatchEvent)).scalars()}
     assert events == {("jf-sh-2", "unplayed"), ("jf-sh-3", "played")}
-    jf_tim = _source_user(db, "jellyfin", "alex")
+    jf_tim = _source_user(db, "jellyfin", "user1")
     stored = {
         w.item_external_id
         for w in db.execute(
@@ -245,8 +245,8 @@ def test_deleted_item_is_not_an_unwatch(synced, monkeypatch):
     items = dict(fakes.JF_ITEMS)
     items[("jf-lib-movies", "Movie")] = []  # Heat's file deleted
     monkeypatch.setattr(fakes, "JF_ITEMS", items)
-    tim_watch = [w for w in fakes.JF_WATCH["u-alex"] if w["Id"] != "jf-heat"]
-    monkeypatch.setitem(fakes.JF_WATCH, "u-alex", tim_watch)
+    tim_watch = [w for w in fakes.JF_WATCH["u-user1"] if w["Id"] != "jf-heat"]
+    monkeypatch.setitem(fakes.JF_WATCH, "u-user1", tim_watch)
     sync_all()
     db.expire_all()
     assert not db.execute(
@@ -256,30 +256,30 @@ def test_deleted_item_is_not_an_unwatch(synced, monkeypatch):
 
 def test_relinking_a_user(synced, logged_in):
     db, *_ = synced
-    al_jf = _source_user(db, "jellyfin", "Jordan")
-    alex = _person(db, "alex")
-    resp = post(logged_in, f"/settings/users/link/{al_jf.id}", {"app_user_id": str(alex.id)})
+    al_jf = _source_user(db, "jellyfin", "user2")
+    user1 = _person(db, "user1")
+    resp = post(logged_in, f"/settings/users/link/{al_jf.id}", {"app_user_id": str(user1.id)})
     assert resp.status_code == 303
     db.expire_all()
     su = db.get(SourceUser, al_jf.id)
-    assert su.app_user_id == alex.id and su.link_assigned
+    assert su.app_user_id == user1.id and su.link_assigned
 
 
 def test_watch_pages_render(synced, logged_in):
     db, *_ = synced
-    alex, tv, movies = _person(db, "alex"), _group(db, "TV"), _group(db, "Movies")
+    user1, tv, movies = _person(db, "user1"), _group(db, "TV"), _group(db, "Movies")
     for flt in ("all", "watched", "diffs", "in_progress", "elsewhere"):
-        resp = logged_in.get(f"/watch?user={alex.id}&group={tv.id}&filter={flt}")
+        resp = logged_in.get(f"/watch?user={user1.id}&group={tv.id}&filter={flt}")
         assert resp.status_code == 200, flt
-    page = logged_in.get(f"/watch?user={alex.id}&group={tv.id}")
+    page = logged_in.get(f"/watch?user={user1.id}&group={tv.id}")
     assert "Sherlock" in page.text and "−1" in page.text
     # The difference sits right after Silo's total, colour coded, with a tooltip.
     assert 'class="delta bad"' in page.text and "played in Jellyfin but not here" in page.text
     assert 'class="pbar some' in page.text and "Apply from" in page.text
-    assert logged_in.get(f"/watch?user={alex.id}&group={movies.id}&filter=all").status_code == 200
-    view = build_watch_view(db, alex, tv)
+    assert logged_in.get(f"/watch?user={user1.id}&group={movies.id}&filter=all").status_code == 200
+    view = build_watch_view(db, user1, tv)
     sherlock = next(r for r in view.rows if r.canonical.title == "Sherlock")
-    url = f"/watch/series?user={alex.id}&group={tv.id}&canonical={sherlock.canonical.id}"
+    url = f"/watch/series?user={user1.id}&group={tv.id}&canonical={sherlock.canonical.id}"
     detail = logged_in.get(url)
     assert detail.status_code == 200 and "S01E02" in detail.text
     assert logged_in.get("/settings/users").status_code == 200
@@ -296,7 +296,7 @@ def test_filter_order_and_default():
 
 def test_all_differences_can_be_narrowed_to_one_app(synced):
     db, *_ = synced
-    view = build_watch_view(db, _person(db, "alex"), _group(db, "Anime"))
+    view = build_watch_view(db, _person(db, "user1"), _group(db, "Anime"))
     everything = {r.canonical.title for r in filter_rows(view, "diffs")}
     silo = view.columns[1].source.id
     # A specific app narrows every flag in the filter to that app.
@@ -314,8 +314,8 @@ def test_search_folding():
 
 def test_watch_page_lists_every_row_and_hides_the_rest(synced, logged_in):
     db, *_ = synced
-    alex, tv = _person(db, "alex"), _group(db, "TV")
-    page = logged_in.get(f"/watch?user={alex.id}&group={tv.id}")
+    user1, tv = _person(db, "user1"), _group(db, "TV")
+    page = logged_in.get(f"/watch?user={user1.id}&group={tv.id}")
     # All differences is first and the default; All titles is last.
     options = filter_options(page.text)
     assert options[0] == ("diffs", "All differences", True)
@@ -330,7 +330,7 @@ def test_watch_page_lists_every_row_and_hides_the_rest(synced, logged_in):
     ]
     # Every title is in the page; those the filter excludes are only hidden.
     rows = table_rows(page.text)
-    assert len(rows) == len(build_watch_view(db, alex, tv).rows) >= 3
+    assert len(rows) == len(build_watch_view(db, user1, tv).rows) >= 3
     by_search = {search: (flags, hidden) for flags, search, hidden in rows}
     assert by_search["the stand stand"][1] is True  # unwatched everywhere: hidden
     sherlock_flags, sherlock_hidden = by_search["sherlock"]
@@ -343,22 +343,22 @@ def test_watch_page_lists_every_row_and_hides_the_rest(synced, logged_in):
 
 def test_watch_page_starts_from_the_url(synced, logged_in):
     db, *_ = synced
-    alex, tv = _person(db, "alex"), _group(db, "TV")
-    everything = logged_in.get(f"/watch?user={alex.id}&group={tv.id}&filter=all")
+    user1, tv = _person(db, "user1"), _group(db, "TV")
+    everything = logged_in.get(f"/watch?user={user1.id}&group={tv.id}&filter=all")
     assert ("all", "All titles", True) in filter_options(everything.text)
     assert not any(hidden for _f, _s, hidden in table_rows(everything.text))
-    searched = logged_in.get(f"/watch?user={alex.id}&group={tv.id}&filter=all&q=sherl")
+    searched = logged_in.get(f"/watch?user={user1.id}&group={tv.id}&filter=all&q=sherl")
     shown = [s for _f, s, hidden in table_rows(searched.text) if not hidden]
     assert shown == ["sherlock"]
     # Old links with a page number still work (there are no pages any more).
-    assert logged_in.get(f"/watch?user={alex.id}&group={tv.id}&page=3").status_code == 200
+    assert logged_in.get(f"/watch?user={user1.id}&group={tv.id}&page=3").status_code == 200
 
 
 def test_watch_page_has_no_inline_handlers(synced, logged_in):
     """The content-security policy blocks inline handlers; behaviour comes from /static."""
     db, *_ = synced
-    alex, tv = _person(db, "alex"), _group(db, "TV")
-    page = logged_in.get(f"/watch?user={alex.id}&group={tv.id}")
+    user1, tv = _person(db, "user1"), _group(db, "TV")
+    page = logged_in.get(f"/watch?user={user1.id}&group={tv.id}")
     assert "onchange=" not in page.text and "onclick=" not in page.text
     assert "data-person-form" in page.text and "data-table-filter" in page.text
     assert '<script src="/static/table-filter.js' in page.text
@@ -391,17 +391,17 @@ def test_view_cache_reuses_until_version_moves():
 
 def test_changes_through_the_ui_invalidate_the_cache(synced, logged_in, app):
     db, *_ = synced
-    alex, tv = _person(db, "alex"), _group(db, "TV")
-    url = f"/watch?user={alex.id}&group={tv.id}&filter=all"
+    user1, tv = _person(db, "user1"), _group(db, "TV")
+    url = f"/watch?user={user1.id}&group={tv.id}&filter=all"
     before = app.state.syncs.version
     logged_in.get(url)
     assert app.state.syncs.version == before  # reading doesn't invalidate
-    cached = app.state.views._entries[("watch", alex.id, tv.id)][1]
-    al_jf = _source_user(db, "jellyfin", "Jordan")
-    post(logged_in, f"/settings/users/link/{al_jf.id}", {"app_user_id": str(alex.id)})
+    cached = app.state.views._entries[("watch", user1.id, tv.id)][1]
+    al_jf = _source_user(db, "jellyfin", "user2")
+    post(logged_in, f"/settings/users/link/{al_jf.id}", {"app_user_id": str(user1.id)})
     assert app.state.syncs.version > before
     logged_in.get(url)
-    assert app.state.views._entries[("watch", alex.id, tv.id)][1] is not cached
+    assert app.state.views._entries[("watch", user1.id, tv.id)][1] is not cached
 
 
 def test_syncs_invalidate_the_cache(synced, app):
@@ -414,11 +414,11 @@ def test_syncs_invalidate_the_cache(synced, app):
 def test_blank_or_junk_numbers_in_the_address_mean_not_set(synced, logged_in):
     """A form sends `source=` for "Any app"; that used to be a raw 422 JSON error."""
     db, *_ = synced
-    alex, tv = _person(db, "alex"), _group(db, "TV")
+    user1, tv = _person(db, "user1"), _group(db, "TV")
     urls = [
         "/watch?source=",
         "/watch?user=&group=&filter=diffs&source=&q=",
-        f"/watch?user={alex.id}&group={tv.id}&source=abc",
+        f"/watch?user={user1.id}&group={tv.id}&source=abc",
         "/presence?source=",
         "/presence?group=&source=&filter=missing",
         "/physical?source=",
@@ -429,14 +429,14 @@ def test_blank_or_junk_numbers_in_the_address_mean_not_set(synced, logged_in):
         assert resp.status_code == 200, (url, resp.status_code, resp.text[:120])
         assert "int_parsing" not in resp.text
     # A real number still narrows the filter.
-    jf_silo = logged_in.get(f"/watch?user={alex.id}&group={tv.id}&filter=diffs&source=999")
+    jf_silo = logged_in.get(f"/watch?user={user1.id}&group={tv.id}&filter=diffs&source=999")
     assert jf_silo.status_code == 200
 
 
 def test_watch_summary_is_a_small_table_per_app(synced, logged_in):
     db, *_ = synced
-    alex, tv = _person(db, "alex"), _group(db, "TV")
-    page = logged_in.get(f"/watch?user={alex.id}&group={tv.id}").text
+    user1, tv = _person(db, "user1"), _group(db, "TV")
+    page = logged_in.get(f"/watch?user={user1.id}&group={tv.id}").text
     jf, silo = summary_col(page, "Jellyfin"), summary_col(page, "Silo")
     for label in ("Played", "Not played", "Total", "In progress", "Read"):
         assert label in jf and label in silo
@@ -448,8 +448,8 @@ def test_watch_summary_is_a_small_table_per_app(synced, logged_in):
 
 def test_watch_names_apps_as_star_name_type(synced, logged_in):
     db, *_ = synced
-    alex, tv = _person(db, "alex"), _group(db, "TV")
-    page = logged_in.get(f"/watch?user={alex.id}&group={tv.id}").text
+    user1, tv = _person(db, "user1"), _group(db, "TV")
+    page = logged_in.get(f"/watch?user={user1.id}&group={tv.id}").text
     assert summary_col(page, "Jellyfin").startswith("★ Jellyfin Jellyfin ")
     assert summary_col(page, "Silo").startswith("Silo Silo ")
     assert '<span class="tag">reference</span>' not in page

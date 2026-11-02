@@ -29,7 +29,7 @@ from .conftest import post
 from .test_watch import _source_user, synced  # noqa: F401  (fixture)
 
 SECRET = "hook-secret-0123456789"
-ALEX, ALI = "p-1", "p-2"
+USER1, ALI = "p-1", "p-2"
 
 
 def _silo(db):
@@ -60,16 +60,16 @@ def send(client, body, *, secret=SECRET, at=None, path=None):
     )
 
 
-def state_event(change, content_id, profile=ALEX, event_id="e1", **data):
+def state_event(change, content_id, profile=USER1, event_id="e1", **data):
     return {
         "event": "user_state.changed",
         "event_id": event_id,
-        "profile": {"id": profile, "name": "alex" if profile == ALEX else "Jordan"},
+        "profile": {"id": profile, "name": "user1" if profile == USER1 else "user2"},
         "data": {"change": change, "content_id": content_id, "profile_id": profile, **data},
     }
 
 
-def silo_state(db, profile=ALEX):
+def silo_state(db, profile=USER1):
     su = db.execute(
         select(SourceUser)
         .join(Source)
@@ -145,7 +145,7 @@ def test_unwatching_a_season_clears_its_episodes_and_logs_it(app, hooks, synced)
     assert app.state.syncs.version > version  # cached comparison pages are rebuilt
     (event,) = db.execute(select(WebhookEvent)).scalars()
     assert event.status == "applied" and event.event == "user_state.changed"
-    assert "alex unwatched" in event.summary and event.profile_name == "alex"
+    assert "user1 unwatched" in event.summary and event.profile_name == "user1"
     kinds = {(e.item_external_id, e.kind) for e in db.execute(select(WatchEvent)).scalars()}
     assert ("episode-tvdb-176941-1-1", "unplayed") in kinds
 
@@ -210,13 +210,13 @@ def test_a_plugin_warning_is_kept_as_an_error(hooks, synced):  # noqa: F811
 
 
 def play(
-    session, item, completed, watched=3500, duration=3600, profile=ALEX, ended="2026-10-27T01:00:00Z"
+    session, item, completed, watched=3500, duration=3600, profile=USER1, ended="2026-10-27T01:00:00Z"
 ):
     return {
         "session_id": session,
         "media_item_id": item,
         "profile_id": profile,
-        "profile_name": "alex" if profile == ALEX else "Jordan",
+        "profile_name": "user1" if profile == USER1 else "user2",
         "completed": completed,
         "watched_seconds": watched,
         "duration_seconds": duration,
@@ -261,7 +261,7 @@ def test_finished_plays_become_watched_or_resume_points(app, hooks, synced, monk
     rows = {e.event_id: e for e in db.execute(select(WebhookEvent)).scalars()}
     assert rows["play:s1"].status == "applied" and "finished" in rows["play:s1"].summary
     assert "stopped" in rows["play:s2"].summary and "50%" in rows["play:s2"].summary
-    assert rows["play:s3"].status == "logged"  # Jordan isn't read yet
+    assert rows["play:s3"].status == "logged"  # user2 isn't read yet
 
     # The same plays arriving again change nothing.
     count = len(rows)
@@ -398,7 +398,7 @@ def test_live_tab_lists_events_and_streams_new_ones(app, hooks, synced, logged_i
     send(hooks, state_event("favorite", "series-tvdb-176941", is_favorite=True))
     page = logged_in.get("/activity?tab=live")
     assert page.status_code == 200 and "Live events" in page.text
-    assert "alex added" in page.text and "user_state.changed" in page.text
+    assert "user1 added" in page.text and "user_state.changed" in page.text
     assert 'data-live-stream="/activity/stream"' in page.text and "live-feed.js" in page.text
 
     async def run():
@@ -441,19 +441,19 @@ def test_connector_page_makes_a_secret_shown_once(app, synced, logged_in):  # no
     db.commit()
     assert "Webhooks from" not in logged_in.get(f"/settings/connectors/{disk.id}").text
     assert post(logged_in, f"/settings/connectors/{disk.id}/webhook-secret").status_code == 400
-    assert _source_user(db, "silo", "alex")
+    assert _source_user(db, "silo", "user1")
 
 
 # --- Jellyfin and the arrs: a header token instead of a signature ---------------------------
 
 
-def jf_event(kind, item="jf-sh-3", user="u-alex", **fields):
+def jf_event(kind, item="jf-sh-3", user="u-user1", **fields):
     return {
         "NotificationType": kind,
         "ItemId": item,
         "ItemType": "Episode",
         "UserId": user,
-        "Username": "alex",
+        "Username": "user1",
         "Name": "Ep",
         "SeriesName": "Sherlock",
         "SeasonNumber": 1,
@@ -482,7 +482,7 @@ def jf_hooks(app, synced):  # noqa: F811
 
 
 def jf_state(db):
-    su = _source_user(db, "jellyfin", "alex")
+    su = _source_user(db, "jellyfin", "user1")
     return {
         w.item_external_id: w
         for w in db.execute(select(WatchState).where(WatchState.source_user_id == su.id)).scalars()
@@ -512,7 +512,7 @@ def test_jellyfin_played_unplayed_and_progress_are_applied(jf_hooks, synced):  #
     send_token(
         jf_hooks,
         jf_hooks.path,
-        jf_event("UserDataSaved", item="JF-SH-3", user="U-ALEX", Played="False"),
+        jf_event("UserDataSaved", item="JF-SH-3", user="U-USER1", Played="False"),
     )
     db.expire_all()
     assert "jf-sh-3" not in jf_state(db)
@@ -537,7 +537,7 @@ def test_jellyfin_played_unplayed_and_progress_are_applied(jf_hooks, synced):  #
     rows = list(db.execute(select(WebhookEvent).order_by(WebhookEvent.id)).scalars())
     assert [r.status for r in rows] == ["applied"] * 3
     assert (
-        "alex watched Sherlock S01E03" in rows[0].summary and "stopped at 10 min" in rows[2].summary
+        "user1 watched Sherlock S01E03" in rows[0].summary and "stopped at 10 min" in rows[2].summary
     )
 
 
@@ -797,9 +797,9 @@ def test_a_jellyfin_change_goes_straight_to_the_other_app(app, jf_hooks, synced,
     from .test_writes import _switch_on
 
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     local.refresh_local(db)
-    _switch_on(db, alex, since=utcnow())  # unwatches count only from switch-on
+    _switch_on(db, user1, since=utcnow())  # unwatches count only from switch-on
     fakes.SILO_WRITES.clear()
     syncs = app.state.syncs
     # Only the direct path may run: a full cycle would also send Local's other differences.

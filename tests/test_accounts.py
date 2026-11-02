@@ -23,7 +23,7 @@ def _clean_fakes():
 
 
 def _without_silo_user(db, name):
-    """Jordan has a Jellyfin user only, as before her Silo account was made."""
+    """user2 has a Jellyfin user only, as before their Silo account was made."""
     silo = db.execute(select(Source).where(Source.type == "silo")).scalar_one()
     su = db.execute(
         select(SourceUser).where(SourceUser.source_id == silo.id, SourceUser.name == name)
@@ -35,23 +35,23 @@ def _without_silo_user(db, name):
 
 def test_nothing_is_planned_until_an_account_is_switched_on(synced):
     db, *_ = synced
-    silo = _without_silo_user(db, "Jordan")
-    al = _person(db, "Jordan")
-    assert [(p.name, s.name) for p, s, _o in accounts.missing(db)] == [("Jordan", silo.name)]
+    silo = _without_silo_user(db, "user2")
+    al = _person(db, "user2")
+    assert [(p.name, s.name) for p, s, _o in accounts.missing(db)] == [("user2", silo.name)]
     assert accounts.plan_accounts(db) == []
     accounts.set_account(db, al, silo.id, True)
     db.commit()
     plan = accounts.plan_accounts(db)
-    assert [(a.person_name, a.source_name, a.blocked) for a in plan] == [("Jordan", silo.name, "")]
-    assert plan[0].from_name  # made from her Jellyfin user
+    assert [(a.person_name, a.source_name, a.blocked) for a in plan] == [("user2", silo.name, "")]
+    assert plan[0].from_name  # made from their Jellyfin user
     row = db.execute(select(UserSync)).scalar_one()
     assert row.sync_account and not row.sync_history  # history stays its own switch
 
 
 def test_an_account_is_made_only_with_a_password_and_is_audited(synced, app):
     db, *_ = synced
-    silo = _without_silo_user(db, "Jordan")
-    al = _person(db, "Jordan")
+    silo = _without_silo_user(db, "user2")
+    al = _person(db, "user2")
     accounts.set_account(db, al, silo.id, True)
     db.commit()
     key = (al.id, silo.id)
@@ -61,22 +61,22 @@ def test_an_account_is_made_only_with_a_password_and_is_audited(synced, app):
     assert [r.ok for r in done] == [True]
     (app_, what, body) = fakes.CREATED[0]
     assert (app_, what) == ("silo", "user")
-    assert body["username"] == "Jordan" and body["role"] == "user"
+    assert body["username"] == "user2" and body["role"] == "user"
     assert body["password"] == "temp-pass-123" and body["require_password_change"] is True
     assert body["email"].endswith("@mediawrangler.invalid")
     log = db.execute(select(AuditLog).where(AuditLog.op == "account")).scalar_one()
-    assert log.result == "applied" and log.user_name == "Jordan"
+    assert log.result == "applied" and log.user_name == "user2"
     assert "temp-pass-123" not in " ".join(str(v) for v in vars(log).values())
 
 
 def test_a_name_already_taken_in_the_app_is_not_made_twice(synced, app):
     db, *_ = synced
-    silo = _without_silo_user(db, "Jordan")
-    al = _person(db, "Jordan")
-    other = _person(db, "alex")
-    # Silo still has a user with her name, but it is linked to someone else.
+    silo = _without_silo_user(db, "user2")
+    al = _person(db, "user2")
+    other = _person(db, "user1")
+    # Silo still has a user with their name, but it is linked to someone else.
     su = db.execute(
-        select(SourceUser).where(SourceUser.source_id == silo.id, SourceUser.name == "Jordan")
+        select(SourceUser).where(SourceUser.source_id == silo.id, SourceUser.name == "user2")
     ).scalar_one()
     su.removed_at, su.app_user_id = None, other.id
     db.commit()
@@ -90,12 +90,12 @@ def test_a_name_already_taken_in_the_app_is_not_made_twice(synced, app):
 
 def test_the_users_page_switch_and_create(synced, logged_in, app):
     db, *_ = synced
-    silo = _without_silo_user(db, "Jordan")
-    al = _person(db, "Jordan")
+    silo = _without_silo_user(db, "user2")
+    al = _person(db, "user2")
     hx = {"headers": {"HX-Request": "true"}}
     assert "Dry run" not in logged_in.get("/settings/users").text
     resp = post(logged_in, f"/settings/users/account/{al.id}/{silo.id}", {"on": "on"}, **hx)
-    assert 'id="accounts"' in resp.text and "Dry run" in resp.text and "Jordan" in resp.text
+    assert 'id="accounts"' in resp.text and "Dry run" in resp.text and "user2" in resp.text
     resp = post(
         logged_in,
         "/settings/users/accounts/create",
@@ -104,10 +104,10 @@ def test_the_users_page_switch_and_create(synced, logged_in, app):
     )
     assert "Created" in resp.text and fakes.CREATED
     # Asking for an account that is not missing is refused.
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     assert (
         post(
-            logged_in, f"/settings/users/account/{alex.id}/{silo.id}", {"on": "on"}, **hx
+            logged_in, f"/settings/users/account/{user1.id}/{silo.id}", {"on": "on"}, **hx
         ).status_code
         == 404
     )
@@ -117,22 +117,22 @@ def test_a_jellyfin_account_gets_the_matching_libraries(synced, app):
     db, *_ = synced
     jf = db.execute(select(Source).where(Source.type == "jellyfin")).scalar_one()
     silo = db.execute(select(Source).where(Source.type == "silo")).scalar_one()
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     db.execute(
-        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == alex.id)
+        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == user1.id)
     ).scalar_one().removed_at = utcnow()
     origin = db.execute(
-        select(SourceUser).where(SourceUser.source_id == silo.id, SourceUser.app_user_id == alex.id)
+        select(SourceUser).where(SourceUser.source_id == silo.id, SourceUser.app_user_id == user1.id)
     ).scalar_one()
     from mediawrangler.models import Library
 
     silo_lib = db.execute(select(Library).where(Library.source_id == silo.id)).scalars().first()
     origin.library_ids = [silo_lib.external_id]
-    accounts.set_account(db, alex, jf.id, True)
+    accounts.set_account(db, user1, jf.id, True)
     db.commit()
     (plan,) = accounts.plan_accounts(db)
     assert plan.libraries and plan.library_ids  # the group's Jellyfin library
-    done = accounts.create_accounts(db, app.state.box, {(alex.id, jf.id): "temp-pass-123"})
+    done = accounts.create_accounts(db, app.state.box, {(user1.id, jf.id): "temp-pass-123"})
     assert [r.ok for r in done] == [True]
     kinds = [(a, w) for a, w, _b in fakes.CREATED]
     assert kinds == [("jellyfin", "user"), ("jellyfin", "policy")]
@@ -144,8 +144,8 @@ def test_silo_account_without_a_password_gets_a_key_and_a_set_password_link(sync
     from mediawrangler.models import SourceAccountKey
 
     db, *_ = synced
-    silo = _without_silo_user(db, "Jordan")
-    al = _person(db, "Jordan")
+    silo = _without_silo_user(db, "user2")
+    al = _person(db, "user2")
     accounts.set_account(db, al, silo.id, True)
     db.commit()
     (done,) = accounts.create_accounts(db, app.state.box, {(al.id, silo.id): ""})
@@ -165,11 +165,11 @@ def test_silo_account_without_a_password_gets_a_key_and_a_set_password_link(sync
 def test_a_jellyfin_account_still_needs_a_typed_password(synced, app):
     db, *_ = synced
     jf = db.execute(select(Source).where(Source.type == "jellyfin")).scalar_one()
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     db.execute(
-        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == alex.id)
+        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == user1.id)
     ).scalar_one().removed_at = utcnow()
-    accounts.set_account(db, alex, jf.id, True)
+    accounts.set_account(db, user1, jf.id, True)
     db.commit()
-    (done,) = accounts.create_accounts(db, app.state.box, {(alex.id, jf.id): ""})
+    (done,) = accounts.create_accounts(db, app.state.box, {(user1.id, jf.id): ""})
     assert not done.ok and "password needs" in done.detail and not fakes.CREATED

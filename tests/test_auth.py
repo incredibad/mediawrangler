@@ -30,7 +30,7 @@ def test_setup_creates_admin_and_suggests_totp(client):
 
 def test_setup_enforces_password_policy(client):
     client.get("/setup")
-    resp = post(client, "/setup", {"username": "alex", "password": "short", "confirm": "short"})
+    resp = post(client, "/setup", {"username": "user1", "password": "short", "confirm": "short"})
     assert resp.status_code == 400
     assert "at least 10" in resp.text
 
@@ -42,7 +42,7 @@ def test_setup_closes_once_admin_exists(client, app):
     resp = post(client, "/setup", {"username": "eve", "password": PASSWORD, "confirm": PASSWORD})
     assert resp.headers["location"] == "/login"
     with app.state.db.sessionmaker() as db:
-        assert [u.username for u in db.execute(select(AdminUser)).scalars()] == ["alex"]
+        assert [u.username for u in db.execute(select(AdminUser)).scalars()] == ["user1"]
 
 
 def test_protected_page_redirects_to_login_with_next(client):
@@ -65,7 +65,7 @@ def test_htmx_requests_get_hx_redirect(client):
 def test_login_logout(client):
     setup_admin(client)
     client.cookies.clear()
-    resp = post(client, "/login", {"username": "ALEX", "password": PASSWORD, "next": "/settings"})
+    resp = post(client, "/login", {"username": "USER1", "password": PASSWORD, "next": "/settings"})
     assert resp.status_code == 303
     assert resp.headers["location"] == "/settings"
     assert client.get("/").status_code == 200
@@ -76,7 +76,7 @@ def test_login_logout(client):
 def test_bad_password_is_rejected_and_logged(client, app):
     setup_admin(client)
     client.cookies.clear()
-    resp = post(client, "/login", {"username": "alex", "password": "nope-nope-nope-nope"})
+    resp = post(client, "/login", {"username": "user1", "password": "nope-nope-nope-nope"})
     assert resp.status_code == 401
     assert "Incorrect username or password" in resp.text
     resp = post(client, "/login", {"username": "nobody", "password": "nope-nope-nope-nope"})
@@ -94,10 +94,10 @@ def test_account_lockout(client):
     client.cookies.clear()
     for _ in range(lockout.MAX_FAILURES_PER_ACCOUNT):
         assert (
-            post(client, "/login", {"username": "alex", "password": "wrong-wrong-wrong"}).status_code
+            post(client, "/login", {"username": "user1", "password": "wrong-wrong-wrong"}).status_code
             == 401
         )
-    resp = post(client, "/login", {"username": "alex", "password": PASSWORD})
+    resp = post(client, "/login", {"username": "user1", "password": PASSWORD})
     assert resp.status_code == 429
     assert "Too many failed attempts" in resp.text
 
@@ -108,14 +108,14 @@ def test_lock_lifts_after_window(app):
             lockout.record(
                 db,
                 ip="10.0.0.1",
-                username="alex",
+                username="user1",
                 step="password",
                 success=False,
                 reason="bad_password",
             )
-        assert lockout.check_lock(db, "10.0.0.9", "alex").locked
+        assert lockout.check_lock(db, "10.0.0.9", "user1").locked
         later = lockout.utcnow() + lockout.WINDOW + timedelta(seconds=1)
-        assert not lockout.check_lock(db, "10.0.0.9", "alex", now=later).locked
+        assert not lockout.check_lock(db, "10.0.0.9", "user1", now=later).locked
 
 
 def test_ip_lockout_spans_usernames(app):
@@ -131,14 +131,14 @@ def test_csrf_token_required(client):
     client.get("/setup")
     resp = client.post(
         "/setup",
-        data={"username": "alex", "password": PASSWORD, "confirm": PASSWORD},
+        data={"username": "user1", "password": PASSWORD, "confirm": PASSWORD},
         follow_redirects=False,
     )
     assert resp.status_code == 403
     resp = post(
         client,
         "/setup",
-        {"username": "alex", "password": PASSWORD, "confirm": PASSWORD, "csrf_token": "x" * 43},
+        {"username": "user1", "password": PASSWORD, "confirm": PASSWORD, "csrf_token": "x" * 43},
     )
     assert resp.status_code == 403
 
@@ -148,7 +148,7 @@ def test_cross_origin_post_refused(client):
     resp = post(
         client,
         "/setup",
-        {"username": "alex", "password": PASSWORD, "confirm": PASSWORD},
+        {"username": "user1", "password": PASSWORD, "confirm": PASSWORD},
         headers={"Origin": "https://evil.example"},
     )
     assert resp.status_code == 403
@@ -189,7 +189,7 @@ def test_totp_enable_and_login(client, app, monkeypatch):
     assert "Two-factor authentication is off" not in client.get("/").text
 
     client.cookies.clear()
-    resp = post(client, "/login", {"username": "alex", "password": PASSWORD, "next": "/settings"})
+    resp = post(client, "/login", {"username": "user1", "password": PASSWORD, "next": "/settings"})
     assert resp.headers["location"] == "/login/totp?next=%2Fsettings"
     # Password alone doesn't grant access.
     assert client.get("/", follow_redirects=False).status_code == 303
@@ -211,7 +211,7 @@ def test_totp_enable_and_login(client, app, monkeypatch):
 
     # The same code can't be used twice.
     client.cookies.clear()
-    post(client, "/login", {"username": "alex", "password": PASSWORD})
+    post(client, "/login", {"username": "user1", "password": PASSWORD})
     assert post(client, "/login/totp", {"code": gen.at(next_step)}).status_code == 401
 
 
@@ -220,11 +220,11 @@ def test_recovery_code_is_single_use(client):
     _secret, codes = _enable_totp(client)
 
     client.cookies.clear()
-    post(client, "/login", {"username": "alex", "password": PASSWORD})
+    post(client, "/login", {"username": "user1", "password": PASSWORD})
     assert post(client, "/login/totp", {"code": codes[0]}).status_code == 303
 
     client.cookies.clear()
-    post(client, "/login", {"username": "alex", "password": PASSWORD})
+    post(client, "/login", {"username": "user1", "password": PASSWORD})
     assert post(client, "/login/totp", {"code": codes[0]}).status_code == 401
 
 
@@ -233,9 +233,9 @@ def test_password_step_success_does_not_reset_totp_failures(client):
     _enable_totp(client)
     client.cookies.clear()
     for _ in range(lockout.MAX_FAILURES_PER_ACCOUNT):
-        post(client, "/login", {"username": "alex", "password": PASSWORD})
+        post(client, "/login", {"username": "user1", "password": PASSWORD})
         post(client, "/login/totp", {"code": "000000"})
-    resp = post(client, "/login", {"username": "alex", "password": PASSWORD})
+    resp = post(client, "/login", {"username": "user1", "password": PASSWORD})
     assert resp.status_code == 429
 
 
@@ -244,7 +244,7 @@ def test_change_password_signs_out_other_sessions(client, app):
 
     setup_admin(client)
     with TestClient(app) as other:
-        post(other, "/login", {"username": "alex", "password": PASSWORD})
+        post(other, "/login", {"username": "user1", "password": PASSWORD})
         assert other.get("/").status_code == 200
         new = "an even longer passphrase here"
         resp = post(

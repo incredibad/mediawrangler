@@ -352,7 +352,7 @@ def _history_world(db):
     )
 
     src = Source(type="jellyfin", name="Jellyfin", base_url="http://jf")
-    person = AppUser(name="Alex")
+    person = AppUser(name="User1")
     old = CanonicalItem(key="old", kind="series", title="The Stand", year=2020)
     new = CanonicalItem(key="new", kind="series", title="The Stand", year=1994)
     db.add_all([src, person, old, new])

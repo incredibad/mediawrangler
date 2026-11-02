@@ -60,7 +60,7 @@ def post(client: TestClient, url: str, data: dict | None = None, **kwargs):
     return client.post(url, data=data, follow_redirects=False, **kwargs)
 
 
-def setup_admin(client: TestClient, username: str = "alex", password: str = PASSWORD):
+def setup_admin(client: TestClient, username: str = "user1", password: str = PASSWORD):
     client.get("/setup")
     resp = post(client, "/setup", {"username": username, "password": password, "confirm": password})
     assert resp.status_code == 303, resp.text

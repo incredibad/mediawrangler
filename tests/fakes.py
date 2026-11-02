@@ -134,7 +134,7 @@ SILO_FAIL: set[str] = set()  # content ids whose write fails
 
 JF_GONE: set[str] = set()  # item ids Jellyfin no longer has (a replaced file)
 
-JF_USERS = [{"Id": "u-alex", "Name": "alex"}, {"Id": "u-al", "Name": "Jordan"}]
+JF_USERS = [{"Id": "u-user1", "Name": "user1"}, {"Id": "u-al", "Name": "user2"}]
 
 
 def _jf_watch(id_, played=True, position_ticks=0, last="2026-10-20T10:00:00.1234567Z"):
@@ -152,7 +152,7 @@ def _jf_watch(id_, played=True, position_ticks=0, last="2026-10-20T10:00:00.1234
 
 # Mutable so tests can change what a user has watched between syncs.
 JF_WATCH = {
-    "u-alex": [
+    "u-user1": [
         _jf_watch("jf-sh-1"),
         _jf_watch("jf-sh-2"),
         _jf_watch("jf-sh-s1"),
@@ -444,13 +444,13 @@ class SiloServer:
             return httpx.Response(404, json={"detail": "Profile not found"})
         # Account and admin endpoints don't need a profile; catalog reads do.
         if path == "/api/v2/account/me":
-            return httpx.Response(200, json={"id": "1", "username": "alex"})
+            return httpx.Response(200, json={"id": "1", "username": "user1"})
         if path == "/api/v2/admin/users":
-            accounts = [{"id": "1", "username": "alex"}, {"id": "2", "username": "Jordan"}]
+            accounts = [{"id": "1", "username": "user1"}, {"id": "2", "username": "user2"}]
             return httpx.Response(200, json={"items": accounts, "page": {"has_more": False}})
         if path.startswith("/api/v2/admin/users/") and path.endswith("/profiles"):
             uid = path.split("/")[5]
-            name = {"1": "alex", "2": "Jordan"}[uid]
+            name = {"1": "user1", "2": "user2"}[uid]
             return httpx.Response(200, json={"items": [{"id": f"p-{uid}", "name": name}]})
         assert request.headers.get("x-profile-id") == "p-1", path
         if path == "/api/v2/libraries":

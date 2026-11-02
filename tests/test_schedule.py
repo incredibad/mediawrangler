@@ -25,8 +25,8 @@ def _wait(app):
 
 def test_watch_sync_reads_only_watch_state(synced, app, monkeypatch):  # noqa: F811
     db, _sync_all, _ = synced
-    tim_watch = list(fakes.JF_WATCH["u-alex"]) + [fakes._jf_watch("jf-sh-3")]
-    monkeypatch.setitem(fakes.JF_WATCH, "u-alex", tim_watch)
+    tim_watch = list(fakes.JF_WATCH["u-user1"]) + [fakes._jf_watch("jf-sh-3")]
+    monkeypatch.setitem(fakes.JF_WATCH, "u-user1", tim_watch)
     run_id = app.state.syncs.start(_source(db, "Jellyfin").id, "schedule", "watch")
     _wait(app)
     db.expire_all()
@@ -161,8 +161,8 @@ def test_schedule_fields_validate_and_save(synced, logged_in, app):  # noqa: F81
 
 def test_activity_tabs(synced, logged_in, app, monkeypatch):  # noqa: F811
     db, _sync_all, _ = synced
-    tim_watch = [w for w in fakes.JF_WATCH["u-alex"] if w["Id"] != "jf-sh-2"]
-    monkeypatch.setitem(fakes.JF_WATCH, "u-alex", tim_watch)
+    tim_watch = [w for w in fakes.JF_WATCH["u-user1"] if w["Id"] != "jf-sh-2"]
+    monkeypatch.setitem(fakes.JF_WATCH, "u-user1", tim_watch)
     app.state.syncs.start(_source(db, "Jellyfin").id, "schedule", "watch")
     _wait(app)
     runs = logged_in.get("/activity").text
@@ -180,8 +180,8 @@ def test_activity_tabs(synced, logged_in, app, monkeypatch):  # noqa: F811
     changes = logged_in.get("/activity?tab=audit").text
     (row,) = table_rows(changes)
     assert not row[2] and "unplayed" in row[0]
-    assert "Found by a read of Jellyfin: alex unwatched it" in changes and "Recorded" in changes
-    assert "Unplayed" in changes and "alex" in changes
+    assert "Found by a read of Jellyfin: user1 unwatched it" in changes and "Recorded" in changes
+    assert "Unplayed" in changes and "user1" in changes
 
 
 def test_daily_time_waits_for_its_hour_and_skips_peak(synced, app):  # noqa: F811

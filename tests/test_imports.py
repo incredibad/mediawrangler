@@ -140,7 +140,7 @@ def test_parse_trakt_dedupes_replays():
 
 def test_import_is_another_column_and_replaces(synced):  # noqa: F811
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     recs = parse_trakt(
         _trakt_zip(
             episodes=[
@@ -150,8 +150,8 @@ def test_import_is_another_column_and_replaces(synced):  # noqa: F811
             ]
         )
     )
-    imp = apply_import(db, alex.id, "trakt", "t.zip", recs)
-    view = build_watch_view(db, alex, _group(db, "TV"))
+    imp = apply_import(db, user1.id, "trakt", "t.zip", recs)
+    view = build_watch_view(db, user1, _group(db, "TV"))
     col = _imported(view)
     assert col.source.name == "Trakt" and col.source.type == "import"
     sherlock = next(r for r in view.rows if r.canonical.title == "Sherlock")
@@ -170,10 +170,10 @@ def test_import_is_another_column_and_replaces(synced):  # noqa: F811
         for c in [c for c in view.columns if c.source.type not in ("import", "local")]
     )
     assert "elsewhere" not in sherlock.flags
-    imports, rows = elsewhere(db, alex.id, 1_000_000)
+    imports, rows = elsewhere(db, user1.id, 1_000_000)
     assert [i.id for i in imports] == [imp.id] and rows == []  # nothing is left for the tab
 
-    apply_import(db, alex.id, "trakt", "again.zip", parse_trakt(_trakt_zip(movies=[("Heat", 949)])))
+    apply_import(db, user1.id, "trakt", "again.zip", parse_trakt(_trakt_zip(movies=[("Heat", 949)])))
     assert len(db.execute(select(WatchImport)).scalars().all()) == 1
 
 
@@ -189,7 +189,7 @@ def test_upload_needs_a_person_and_shows_the_column(synced, logged_in):  # noqa:
     bad = logged_in.post(
         "/settings/imports",
         data={
-            "person": str(_person(db, "alex").id),
+            "person": str(_person(db, "user1").id),
             "kind": "yamtrack",
             "csrf_token": _csrf(logged_in),
         },
@@ -199,7 +199,7 @@ def test_upload_needs_a_person_and_shows_the_column(synced, logged_in):  # noqa:
     ok = logged_in.post(
         "/settings/imports",
         data={
-            "person": str(_person(db, "alex").id),
+            "person": str(_person(db, "user1").id),
             "kind": "trakt",
             "csrf_token": _csrf(logged_in),
         },
@@ -211,7 +211,7 @@ def test_upload_needs_a_person_and_shows_the_column(synced, logged_in):  # noqa:
     # A Yamtrack file for the same person sits beside it, as its own column.
     yam = {"file": ("y.csv", YAMTRACK.encode())}
     data = {
-        "person": str(_person(db, "alex").id),
+        "person": str(_person(db, "user1").id),
         "kind": "yamtrack",
         "csrf_token": _csrf(logged_in),
     }
@@ -222,7 +222,7 @@ def test_upload_needs_a_person_and_shows_the_column(synced, logged_in):  # noqa:
     watch = logged_in.get("/watch?filter=all").text
     assert "file import" in watch and table_rows(watch)
     imp = db.execute(select(WatchImport).where(WatchImport.kind == "trakt")).scalar_one()
-    page = logged_in.get(f"/watch/elsewhere?user={_person(db, 'alex').id}").text
+    page = logged_in.get(f"/watch/elsewhere?user={_person(db, 'user1').id}").text
     rows = table_rows(page)
     assert rows and all("other" in flags for flags, _s, _h in rows)  # only what can't be placed
     tv = table_rows(logged_in.get("/watch?filter=elsewhere").text)
@@ -277,7 +277,7 @@ def test_a_whole_show_entry_without_a_season_is_season_one():
 
 def test_anime_progress_counts_as_the_first_episodes(synced):  # noqa: F811
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     recs = parse_yamtrack(
         _anime_csv(
             ("21", "One Piece", "In progress", "3"),
@@ -286,20 +286,20 @@ def test_anime_progress_counts_as_the_first_episodes(synced):  # noqa: F811
             ("5", "Heat", "Completed", "1"),
         ).encode()
     )
-    imp = apply_import(db, alex.id, "yamtrack", "y.csv", recs)
+    imp = apply_import(db, user1.id, "yamtrack", "y.csv", recs)
     anime = parse(ANIME_LIST)
-    view = build_watch_view(db, alex, _group(db, "Anime"), anime)
+    view = build_watch_view(db, user1, _group(db, "Anime"), anime)
     col = _imported(view)
     one_piece = next(r for r in view.rows if r.canonical.title == "One Piece")
     assert one_piece.cells[col.source.id].played == 3
     # Without the list, nothing is guessed.
-    bare = build_watch_view(db, alex, _group(db, "Anime"))
+    bare = build_watch_view(db, user1, _group(db, "Anime"))
     op = next(r for r in bare.rows if r.canonical.title == "One Piece")
     assert op.cells[_imported(bare).source.id].played == 0
-    movies = build_watch_view(db, alex, _group(db, "Movies"), anime)
+    movies = build_watch_view(db, user1, _group(db, "Movies"), anime)
     heat = next(r for r in movies.rows if r.canonical.title == "Heat")
     assert heat.cells[_imported(movies).source.id].played == 1
-    imports, rows = elsewhere(db, alex.id, 1_000_000, anime)
+    imports, rows = elsewhere(db, user1.id, 1_000_000, anime)
     left = {r.title: r.kind for r in rows}
     assert left == {"No Ids": "other", "Unlisted": "other"}
     assert imports[0].id == imp.id
@@ -345,7 +345,7 @@ def test_anime_list_refreshes_daily(app, tmp_path, monkeypatch):
 
 def test_settings_page_copes_with_an_import_stored_before_anime_counts(synced, logged_in):  # noqa: F811
     db, *_ = synced
-    imp = apply_import(db, _person(db, "alex").id, "yamtrack", "old.csv", [])
+    imp = apply_import(db, _person(db, "user1").id, "yamtrack", "old.csv", [])
     imp.stats = {"movies": 1, "episodes": 2, "other": 3}  # as 0.6.0 to 0.6.2 stored it
     db.commit()
     page = logged_in.get("/settings/connectors")
@@ -354,7 +354,7 @@ def test_settings_page_copes_with_an_import_stored_before_anime_counts(synced, l
 
 def test_unknown_titles_land_in_the_right_list(synced):  # noqa: F811
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     anime = parse([{"type": "TV", "mal_id": 1, "tvdb_id": 4242, "season": {"tvdb": 1}}])
     recs = parse_trakt(
         _trakt_zip(
@@ -365,20 +365,20 @@ def test_unknown_titles_land_in_the_right_list(synced):  # noqa: F811
             movies=[("Some Film", 55)],
         )
     )
-    apply_import(db, alex.id, "trakt", "t.zip", recs)
+    apply_import(db, user1.id, "trakt", "t.zip", recs)
     titles = {}
     for group in ("TV", "Anime", "Movies"):
-        view = build_watch_view(db, alex, _group(db, group), anime)
+        view = build_watch_view(db, user1, _group(db, group), anime)
         titles[group] = {r.canonical.title for r in view.rows if r.canonical.id < 0}
     assert titles == {"TV": {"Some Drama"}, "Anime": {"Some Anime"}, "Movies": {"Some Film"}}
-    assert elsewhere(db, alex.id, 1_000_000, anime)[1] == []
+    assert elsewhere(db, user1.id, 1_000_000, anime)[1] == []
 
     # A group set to take nothing leaves its titles for the "Not in any app" tab.
     _group(db, "Anime").import_landing = "none"
     db.commit()
-    view = build_watch_view(db, alex, _group(db, "Anime"), anime)
+    view = build_watch_view(db, user1, _group(db, "Anime"), anime)
     assert not [r for r in view.rows if r.canonical.id < 0]
-    assert [r.title for r in elsewhere(db, alex.id, 1_000_000, anime)[1]] == ["Some Anime"]
+    assert [r.title for r in elsewhere(db, user1.id, 1_000_000, anime)[1]] == ["Some Anime"]
 
 
 def test_landing_setting_and_guess(synced, logged_in):  # noqa: F811
@@ -409,21 +409,21 @@ def test_every_play_is_stored_and_shown(synced, logged_in):  # noqa: F811
     from mediawrangler.models import WatchImportPlay
 
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     recs = parse_trakt(
         _trakt_zip(
             episodes=[("Sherlock", 176941, 19885, 1, 1), ("Sherlock", 176941, 19885, 1, 1)],
             movies=[("Heat", 949)],
         )
     )
-    imp = apply_import(db, alex.id, "trakt", "t.zip", recs)
+    imp = apply_import(db, user1.id, "trakt", "t.zip", recs)
     assert imp.stats["plays"] == 3  # two plays of the episode, one of the film
     assert len(db.execute(select(WatchImportPlay)).scalars().all()) == 3
-    view = build_watch_view(db, alex, _group(db, "TV"))
+    view = build_watch_view(db, user1, _group(db, "TV"))
     sherlock = next(r for r in view.rows if r.canonical.title == "Sherlock")
     assert sherlock.cells[_imported(view).source.id].plays == 2
     assert sherlock.cells[view.columns[0].source.id].plays == 0  # apps don't report plays here
-    page = logged_in.get(f"/watch?user={alex.id}&group={_group(db, 'TV').id}&filter=all").text
+    page = logged_in.get(f"/watch?user={user1.id}&group={_group(db, 'TV').id}&filter=all").text
     assert "2 plays recorded" in page
     # Removing the import removes its plays with it.
     assert post(logged_in, f"/settings/imports/{imp.id}/delete").status_code == 303

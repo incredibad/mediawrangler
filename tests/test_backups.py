@@ -31,7 +31,7 @@ def _people(app, *names):
 
 
 def test_a_backup_holds_a_working_copy_and_a_manifest(app, settings, tmp_path):
-    _people(app, "alex", "zach")
+    _people(app, "user1", "zach")
     path = backups.create_backup(app.state.db, settings, "manual")
     assert path.name.startswith("mw-manual-") and path.name.endswith(".tar.gz")
     manifest = backups.read_manifest(path)
@@ -159,16 +159,16 @@ def _fill(app, box):
                 decision="confirm",
             )
         )
-        alex = AppUser(name="alex")
-        s.add(alex)
+        user1 = AppUser(name="user1")
+        s.add(user1)
         s.flush()
-        s.add(UserSync(app_user_id=alex.id, source_id=silo.id, sync_account=True, sync_history=True))
+        s.add(UserSync(app_user_id=user1.id, source_id=silo.id, sync_account=True, sync_history=True))
         s.add(
             SourceUser(
                 source_id=jf.id,
                 external_id="u1",
-                name="Alex JF",
-                app_user_id=alex.id,
+                name="User1 JF",
+                app_user_id=user1.id,
                 link_assigned=True,
             )
         )
@@ -202,7 +202,7 @@ def test_settings_export_imports_into_a_fresh_install(app, settings, tmp_path):
         (decision,) = s.query(MatchDecision).all()
         assert (decision.external_a, decision.external_b) == ("a1", "b1")
         (link,) = s.query(SourceUser).all()
-        assert s.get(AppUser, link.app_user_id).name == "alex" and link.link_assigned
+        assert s.get(AppUser, link.app_user_id).name == "user1" and link.link_assigned
         sync = s.query(UserSync).one()
         assert sync.sync_history and sync.since is not None  # history is counted from the import
         # importing again changes nothing
@@ -243,7 +243,7 @@ def test_the_settings_page_exports_and_imports(logged_in, app, tmp_path):
 
 
 def test_a_restored_backup_boots_with_its_data_and_key(app, settings, tmp_path):
-    _people(app, "alex", "zach")
+    _people(app, "user1", "zach")
     made = backups.create_backup(app.state.db, settings, "manual")
     target = Settings(data_dir=tmp_path / "fresh", public_url="http://testserver", webhook_port=0)
     backups.backup_dir(target)

@@ -58,14 +58,14 @@ def _cycle(app):
 
 def test_nothing_is_written_until_switched_on(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    assert not writes.history_switches(db, alex)
+    user1 = _person(db, "user1")
+    assert not writes.history_switches(db, user1)
     # The plan can be looked at, but the cycle sends nothing without the switches.
-    assert writes.plan_person(db, alex)
+    assert writes.plan_person(db, user1)
     _cycle(app)
     assert not fakes.SILO_WRITES and not fakes.JF_WRITES
-    for _su, source in writes.writable(db, alex):
-        writes.set_history(db, alex, source.id, True)
+    for _su, source in writes.writable(db, user1):
+        writes.set_history(db, user1, source.id, True)
     db.commit()
     _cycle(app)  # the global switch is still off
     assert not fakes.SILO_WRITES and not fakes.JF_WRITES
@@ -73,11 +73,11 @@ def test_nothing_is_written_until_switched_on(synced, app):
 
 def test_played_is_written_to_the_app_that_lacks_it_then_settles(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    plan = writes.plan_person(db, alex)
+    user1 = _person(db, "user1")
+    plan = writes.plan_person(db, user1)
     assert {(p.source_name, p.op) for p in plan} == {("Silo", "played")}
     assert any("Sherlock" in p.label and p.label.endswith("S01E02") for p in plan)
-    _switch_on(db, alex)
+    _switch_on(db, user1)
     _cycle(app)
     db.expire_all()
     assert fakes.SILO_WRITES and all(w[0] == "POST" for w in fakes.SILO_WRITES)
@@ -89,7 +89,7 @@ def test_played_is_written_to_the_app_that_lacks_it_then_settles(synced, app):
         a.result == "applied" and a.before == "unplayed" for a in log
     )
     # The app's stored state followed, so the next cycle has nothing to do.
-    assert writes.plan_person(db, alex) == []
+    assert writes.plan_person(db, user1) == []
     n = len(fakes.SILO_WRITES)
     _cycle(app)
     assert len(fakes.SILO_WRITES) == n
@@ -97,10 +97,10 @@ def test_played_is_written_to_the_app_that_lacks_it_then_settles(synced, app):
 
 def test_writes_wait_until_local_has_taken_in_every_change(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     local.refresh_local(db)
-    _switch_on(db, alex)
-    silo = readable_users(db, alex)[_source(db, "silo").id]
+    _switch_on(db, user1)
+    silo = readable_users(db, user1)[_source(db, "silo").id]
 
     def reported(via):
         db.add(
@@ -112,25 +112,25 @@ def test_writes_wait_until_local_has_taken_in_every_change(synced, app):
 
     # An echo of our own write is not a change Local is missing.
     reported("write")
-    assert not writes.local_behind(db, alex)
+    assert not writes.local_behind(db, user1)
     # A change Local has not read yet: planned now, an unwatch would read as a missing play.
     reported("webhook")
-    assert writes.local_behind(db, alex)
+    assert writes.local_behind(db, user1)
     _cycle(app)
     assert not fakes.SILO_WRITES and not fakes.JF_WRITES
     local.refresh_local(db)
-    assert not writes.local_behind(db, alex)
+    assert not writes.local_behind(db, user1)
     _cycle(app)
     assert fakes.SILO_WRITES
 
 
 def test_the_title_filter_limits_what_is_written(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    _switch_on(db, alex, title_filter="no such show")
+    user1 = _person(db, "user1")
+    _switch_on(db, user1, title_filter="no such show")
     _cycle(app)
     assert not fakes.SILO_WRITES
-    alex.writes_filter = "sherlock"
+    user1.writes_filter = "sherlock"
     db.commit()
     _cycle(app)
     assert fakes.SILO_WRITES
@@ -138,10 +138,10 @@ def test_the_title_filter_limits_what_is_written(synced, app):
 
 def test_an_unwatch_is_written_only_if_seen_after_switching_on(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     st = (
         db.execute(
-            select(LocalState).where(LocalState.app_user_id == alex.id, LocalState.kind == "mv")
+            select(LocalState).where(LocalState.app_user_id == user1.id, LocalState.kind == "mv")
         )
         .scalars()
         .first()
@@ -154,7 +154,7 @@ def test_an_unwatch_is_written_only_if_seen_after_switching_on(synced, app):
     def unplayed(at):
         db.add(
             LocalEvent(
-                app_user_id=alex.id,
+                app_user_id=user1.id,
                 kind=key[0],
                 canonical_id=key[1],
                 season=0,
@@ -167,30 +167,30 @@ def test_an_unwatch_is_written_only_if_seen_after_switching_on(synced, app):
         db.commit()
 
     unplayed(now - timedelta(hours=2))
-    _switch_on(db, alex, since=now - timedelta(hours=1))
-    assert not [p for p in writes.plan_person(db, alex) if p.op == "unplayed"]  # before switch-on
+    _switch_on(db, user1, since=now - timedelta(hours=1))
+    assert not [p for p in writes.plan_person(db, user1) if p.op == "unplayed"]  # before switch-on
     unplayed(now - timedelta(minutes=5))
-    ops = [(p.source_name, p.op) for p in writes.plan_person(db, alex) if p.op == "unplayed"]
+    ops = [(p.source_name, p.op) for p in writes.plan_person(db, user1) if p.op == "unplayed"]
     assert ("Silo", "unplayed") in ops
     # A brand-new unwatch is sent at once.
     db.query(LocalEvent).filter(LocalEvent.at < now - timedelta(minutes=1)).delete()
     db.commit()
     unplayed(utcnow())
     assert ("Silo", "unplayed") in [
-        (p.source_name, p.op) for p in writes.plan_person(db, alex) if p.op == "unplayed"
+        (p.source_name, p.op) for p in writes.plan_person(db, user1) if p.op == "unplayed"
     ]
 
 
 def test_pause_keeps_the_queue_and_resume_sends_it(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     syncs = app.state.syncs
     with syncs._local_lock, syncs.writes._lock:  # let the start-up refresh and write cycle end
         pass
-    _switch_on(db, alex)
+    _switch_on(db, user1)
     writes.set_flag(db, writes.PAUSED_KEY, True)
     with app.state.db.sessionmaker() as s:
-        writes.enqueue(s, s.get(type(alex), alex.id), writes.plan_person(s, s.get(type(alex), alex.id)))
+        writes.enqueue(s, s.get(type(user1), user1.id), writes.plan_person(s, s.get(type(user1), user1.id)))
     _cycle(app)
     assert not fakes.SILO_WRITES
     assert writes.status(db)["pending"] > 0
@@ -202,34 +202,34 @@ def test_pause_keeps_the_queue_and_resume_sends_it(synced, app):
 def test_a_failed_write_is_recorded_and_not_retried_at_once(synced, app, monkeypatch):
     db, *_ = synced
     monkeypatch.setattr(writes.time, "sleep", lambda _s: None)
-    alex = _person(db, "alex")
-    fakes.SILO_FAIL.update({p.item_id for p in writes.plan_person(db, alex)})
-    _switch_on(db, alex)
+    user1 = _person(db, "user1")
+    fakes.SILO_FAIL.update({p.item_id for p in writes.plan_person(db, user1)})
+    _switch_on(db, user1)
     _cycle(app)
     db.expire_all()
     jobs = db.execute(select(WriteJob)).scalars().all()
     assert jobs and all(j.status == "failed" and j.attempts == writes.RETRIES for j in jobs)
     assert all(a.result == "error" for a in db.execute(select(AuditLog)).scalars())
-    assert writes.plan_person(db, alex) == []  # backed off, not queued again straight away
+    assert writes.plan_person(db, user1) == []  # backed off, not queued again straight away
 
 
 def test_the_filter_takes_one_show_per_line(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    _switch_on(db, alex, title_filter="no such show\n  \nSHERLOCK")
-    labels = {p.label for p in writes.plan_person(db, alex)}
+    user1 = _person(db, "user1")
+    _switch_on(db, user1, title_filter="no such show\n  \nSHERLOCK")
+    labels = {p.label for p in writes.plan_person(db, user1)}
     assert labels and all("sherlock" in label.lower() for label in labels)
-    alex.writes_filter = "no such show\nanother"
+    user1.writes_filter = "no such show\nanother"
     db.commit()
-    assert writes.plan_person(db, alex) == []
+    assert writes.plan_person(db, user1) == []
 
 
 def test_writes_page_toggles_save_as_they_change(synced, logged_in, app):
     db, *_ = synced
-    alex, al = _person(db, "alex"), _person(db, "Jordan")
+    user1, al = _person(db, "user1"), _person(db, "user2")
     hx = {"headers": {"HX-Request": "true"}}
-    page = logged_in.get(f"/settings/writes?preview={alex.id}").text
-    assert "Preview for alex" in page and "Mark played" in page and "Silo" in page
+    page = logged_in.get(f"/settings/writes?preview={user1.id}").text
+    assert "Preview for user1" in page and "Mark played" in page and "Silo" in page
     assert "20 Oct 2026" in page  # the date Local has for the watch
     assert (
         "Known from" in page and "Writes to" in page and "Jellyfin" in page
@@ -238,10 +238,10 @@ def test_writes_page_toggles_save_as_they_change(synced, logged_in, app):
     resp = post(logged_in, "/settings/writes/switch/enabled", on, **hx)
     assert 'id="writes-controls"' in resp.text and writes.flag(db, writes.ENABLED_KEY)
     silo = _source(db, "silo")
-    post(logged_in, f"/settings/writes/user/{alex.id}/app/{silo.id}", on, **hx)
+    post(logged_in, f"/settings/writes/user/{user1.id}/app/{silo.id}", on, **hx)
     resp = post(
         logged_in,
-        f"/settings/writes/user/{alex.id}/filter",
+        f"/settings/writes/user/{user1.id}/filter",
         {"title_filter": "sherlock\nheat"},
         **hx,
     )
@@ -249,65 +249,65 @@ def test_writes_page_toggles_save_as_they_change(synced, logged_in, app):
     app.state.syncs.writes._lock.acquire()  # wait for the cycle the change started
     app.state.syncs.writes._lock.release()
     db.expire_all()
-    assert set(writes.history_switches(db, alex)) == {silo.id}
-    assert writes.history_switches(db, alex)[silo.id].since is not None
-    assert alex.writes_filter == "sherlock\nheat"
+    assert set(writes.history_switches(db, user1)) == {silo.id}
+    assert writes.history_switches(db, user1)[silo.id].since is not None
+    assert user1.writes_filter == "sherlock\nheat"
     # "All users" turns everyone who can be written to on, and off again.
     post(logged_in, "/settings/writes/all", on, **hx)
     db.expire_all()
-    assert len(writes.history_switches(db, alex)) == len(writes.writable(db, alex))
+    assert len(writes.history_switches(db, user1)) == len(writes.writable(db, user1))
     assert len(writes.history_switches(db, al)) == len(writes.writable(db, al))
     post(logged_in, "/settings/writes/all", {}, **hx)
     db.expire_all()
-    assert not writes.history_switches(db, alex) and not writes.history_switches(db, al)
+    assert not writes.history_switches(db, user1) and not writes.history_switches(db, al)
     post(logged_in, "/settings/writes/switch/paused", on, **hx)
     assert writes.flag(db, writes.PAUSED_KEY)
 
 
 def test_switching_a_user_off_drops_their_queue(synced, logged_in, app):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     silo = _source(db, "silo")
-    writes.set_history(db, alex, silo.id, True)  # writing stays off, so no cycle runs
+    writes.set_history(db, user1, silo.id, True)  # writing stays off, so no cycle runs
     db.commit()
     writes.set_flag(db, writes.PAUSED_KEY, True)
-    writes.enqueue(db, alex, writes.plan_person(db, alex))
+    writes.enqueue(db, user1, writes.plan_person(db, user1))
     queued = writes.status(db)["pending"]
     assert queued > 0
     assert writes.status(db)["pending"] == queued  # paused: kept
     post(
         logged_in,
-        f"/settings/writes/user/{alex.id}/app/{silo.id}",
+        f"/settings/writes/user/{user1.id}/app/{silo.id}",
         {},
         headers={"HX-Request": "true"},
     )
     db.expire_all()
-    assert writes.status(db)["pending"] == 0 and not writes.history_switches(db, alex)
+    assert writes.status(db)["pending"] == 0 and not writes.history_switches(db, user1)
 
 
 def test_preview_shows_the_first_100_and_can_show_all(synced, logged_in, monkeypatch):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     monkeypatch.setattr("mediawrangler.web.routes_settings.PREVIEW_ROWS", 0)
-    page = logged_in.get(f"/settings/writes?preview={alex.id}").text
+    page = logged_in.get(f"/settings/writes?preview={user1.id}").text
     assert "Showing the first 0 of" in page and "Show all" in page
-    page = logged_in.get(f"/settings/writes?preview={alex.id}&all=1").text
+    page = logged_in.get(f"/settings/writes?preview={user1.id}&all=1").text
     assert "Showing all" in page and "Show the first" in page
 
 
 def test_libraries_a_user_cannot_open_are_not_written_to(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     st = (
         db.execute(
-            select(LocalState).where(LocalState.app_user_id == alex.id, LocalState.kind == "mv")
+            select(LocalState).where(LocalState.app_user_id == user1.id, LocalState.kind == "mv")
         )
         .scalars()
         .first()
     )
     db.add(
         LocalEvent(
-            app_user_id=alex.id,
+            app_user_id=user1.id,
             kind="mv",
             canonical_id=st.canonical_id,
             season=0,
@@ -318,15 +318,15 @@ def test_libraries_a_user_cannot_open_are_not_written_to(synced, app):
         )
     )
     db.delete(st)
-    _switch_on(db, alex, since=utcnow() - timedelta(hours=1))
+    _switch_on(db, user1, since=utcnow() - timedelta(hours=1))
 
     def apps():
-        return {p.source_name for p in writes.plan_person(db, alex) if p.op == "unplayed"}
+        return {p.source_name for p in writes.plan_person(db, user1) if p.op == "unplayed"}
 
     assert "Jellyfin" in apps()
     jf = db.execute(select(Source).where(Source.type == "jellyfin")).scalar_one()
     row = db.execute(
-        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == alex.id)
+        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == user1.id)
     ).scalar_one()
     row.library_ids = ["jf-lib-tv"]  # not the Movies library
     db.commit()
@@ -342,10 +342,10 @@ def _remove_silo_items(db):
 
 def test_a_queued_write_for_an_item_that_has_gone_is_skipped_not_sent(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    plan = writes.plan_person(db, alex)
-    _switch_on(db, alex)
-    writes.enqueue(db, alex, plan)
+    user1 = _person(db, "user1")
+    plan = writes.plan_person(db, user1)
+    _switch_on(db, user1)
+    writes.enqueue(db, user1, plan)
     _remove_silo_items(db)  # e.g. the app replaced the file and gave the item a new id
     writes.drain(app.state.db, app.state.box)
     db.expire_all()
@@ -360,9 +360,9 @@ def test_a_queued_write_for_an_item_that_has_gone_is_skipped_not_sent(synced, ap
 def test_a_failed_write_whose_item_has_gone_stops_being_a_failure(synced, app, monkeypatch):
     db, *_ = synced
     monkeypatch.setattr(writes.time, "sleep", lambda _s: None)
-    alex = _person(db, "alex")
-    fakes.SILO_FAIL.update({p.item_id for p in writes.plan_person(db, alex)})
-    _switch_on(db, alex)
+    user1 = _person(db, "user1")
+    fakes.SILO_FAIL.update({p.item_id for p in writes.plan_person(db, user1)})
+    _switch_on(db, user1)
     _cycle(app)
     db.expire_all()
     assert {j.status for j in db.execute(select(WriteJob)).scalars()} == {"failed"}
@@ -376,10 +376,10 @@ def test_the_queue_panel_shows_live_progress_and_refreshes_itself(synced, logged
     db, *_ = synced
     idle = logged_in.get("/settings/writes/status").text
     assert "Off" in idle and 'hx-trigger="every 2s"' in idle
-    alex = _person(db, "alex")
-    plan = writes.plan_person(db, alex)
-    _switch_on(db, alex)
-    writes.enqueue(db, alex, plan)
+    user1 = _person(db, "user1")
+    plan = writes.plan_person(db, user1)
+    _switch_on(db, user1)
+    writes.enqueue(db, user1, plan)
     live = logged_in.get("/settings/writes/status").text
     assert f"0 / {len(plan):,}" in live and "Running" in live and "every 1s" in live
     assert '<progress class="queue-bar"' in live
@@ -392,10 +392,10 @@ def test_the_queue_panel_shows_live_progress_and_refreshes_itself(synced, logged
 
 def test_the_run_total_counts_jobs_that_have_waited_a_while(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    plan = writes.plan_person(db, alex)
-    _switch_on(db, alex)
-    writes.enqueue(db, alex, plan)
+    user1 = _person(db, "user1")
+    plan = writes.plan_person(db, user1)
+    _switch_on(db, user1)
+    writes.enqueue(db, user1, plan)
     for job in db.execute(select(WriteJob)).scalars():  # queued long ago, e.g. before a pause
         job.created_at = utcnow() - timedelta(hours=2)
     db.commit()
@@ -405,11 +405,11 @@ def test_the_run_total_counts_jobs_that_have_waited_a_while(synced, app):
 
 def test_preview_says_so_when_writes_are_already_queued(synced, logged_in, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    plan = writes.plan_person(db, alex)
-    _switch_on(db, alex)
-    writes.enqueue(db, alex, plan)  # queued, not yet sent
-    page = logged_in.get(f"/settings/writes?preview={alex.id}").text
+    user1 = _person(db, "user1")
+    plan = writes.plan_person(db, user1)
+    _switch_on(db, user1)
+    writes.enqueue(db, user1, plan)  # queued, not yet sent
+    page = logged_in.get(f"/settings/writes?preview={user1.id}").text
     assert f"{len(plan):,}</strong> write" in page and "already queued" in page
     assert "every app agrees with Local" not in page
 
@@ -418,10 +418,10 @@ def test_a_restart_carries_on_with_the_queue(synced, app):
     from fastapi.testclient import TestClient
 
     db, *_ = synced
-    alex = _person(db, "alex")
-    plan = writes.plan_person(db, alex)
-    _switch_on(db, alex)
-    writes.enqueue(db, alex, plan)  # queued, then the app goes down before sending
+    user1 = _person(db, "user1")
+    plan = writes.plan_person(db, user1)
+    _switch_on(db, user1)
+    writes.enqueue(db, user1, plan)  # queued, then the app goes down before sending
     assert writes.status(db)["pending"] > 0 and not fakes.SILO_WRITES
     with TestClient(app):  # starting up again
         for _ in range(100):
@@ -434,9 +434,9 @@ def test_a_restart_carries_on_with_the_queue(synced, app):
 
 def test_a_name_and_year_match_is_not_written_to(synced):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     silo = _source(db, "silo")
-    assert any("Sherlock" in p.label for p in writes.plan_person(db, alex))
+    assert any("Sherlock" in p.label for p in writes.plan_person(db, user1))
     for item in db.execute(
         select(SourceItem).where(
             SourceItem.source_id == silo.id,
@@ -446,17 +446,17 @@ def test_a_name_and_year_match_is_not_written_to(synced):
     ).scalars():
         item.match_confidence = "low"  # paired with Jellyfin's only by title and year
     db.commit()
-    assert not any("Sherlock" in p.label for p in writes.plan_person(db, alex))
+    assert not any("Sherlock" in p.label for p in writes.plan_person(db, user1))
 
 
 def test_an_item_jellyfin_has_replaced_is_a_replaced_file_not_an_error(synced, app):
     db, *_ = synced
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     jf = _source(db, "jellyfin")
     key = local.item_keys(db, jf)["jf-sh-3"]
     db.merge(
         LocalState(
-            app_user_id=alex.id,
+            app_user_id=user1.id,
             kind=key[0],
             canonical_id=key[1],
             season=key[2],
@@ -466,11 +466,11 @@ def test_an_item_jellyfin_has_replaced_is_a_replaced_file_not_an_error(synced, a
         )
     )
     db.commit()
-    _switch_on(db, alex)
-    mine = [p for p in writes.plan_person(db, alex) if p.source_name == jf.name]
+    _switch_on(db, user1)
+    mine = [p for p in writes.plan_person(db, user1) if p.source_name == jf.name]
     assert [p.item_id for p in mine] == ["jf-sh-3"]
     assert mine[0].origin is not None
-    writes.enqueue(db, alex, mine)
+    writes.enqueue(db, user1, mine)
     fakes.JF_GONE.add("jf-sh-3")  # Radarr/Sonarr upgraded the file; Jellyfin gave it a new id
     asked = []
     writes.run_cycle(app.state.db, app.state.box, asked.append)
@@ -485,8 +485,8 @@ def test_an_item_jellyfin_has_replaced_is_a_replaced_file_not_an_error(synced, a
 
 def test_the_audit_log_tab_holds_what_was_received_and_what_was_sent(synced, logged_in, app):
     db, *_ = synced
-    alex = _person(db, "alex")
-    _switch_on(db, alex)
+    user1 = _person(db, "user1")
+    _switch_on(db, user1)
     _cycle(app)
     page = logged_in.get("/activity?tab=audit").text
     rows = table_rows(page)

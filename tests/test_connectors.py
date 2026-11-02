@@ -51,12 +51,12 @@ def test_silo_uses_bearer_and_native_api():
         if request.url.path == "/api/v2/system/info":
             return httpx.Response(200, json={"version": "0.9.1"})
         assert request.headers["authorization"] == "Bearer s1lo"
-        return httpx.Response(200, json={"username": "alex"})
+        return httpx.Response(200, json={"username": "user1"})
 
     result = SiloConnector(
         ConnectorConfig("http://silo:8090", "s1lo"), _client(handler)
     ).test_connection()
-    assert result.ok and result.version == "0.9.1" and "alex" in result.message
+    assert result.ok and result.version == "0.9.1" and "user1" in result.message
 
 
 def test_silo_explains_jellyfin_compat_port():

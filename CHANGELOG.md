@@ -758,7 +758,7 @@ one build stage of the roadmap.
 
 ### Changed
 
-- The Audit log explains each received change: "Reported by webhook via Jellyfin: alex played it",
+- The Audit log explains each received change: "Reported by webhook via Jellyfin: user1 played it",
   "Found by a read of Silo: ...", and, for a change that is MediaWrangler's own write being noted or an app
   reporting it back within 30 seconds, "reported it back after MediaWrangler's own write, so there was nothing
   new to apply" with the result "Ignored" (others show "Recorded"). New "Ignored echoes" filter. Watch events

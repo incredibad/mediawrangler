@@ -29,10 +29,10 @@ def _clean():
 
 
 def _jf_user(db):
-    alex = _person(db, "alex")
+    user1 = _person(db, "user1")
     jf = db.execute(select(Source).where(Source.type == "jellyfin")).scalar_one()
     return db.execute(
-        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == alex.id)
+        select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == user1.id)
     ).scalar_one()
 
 
@@ -129,8 +129,8 @@ def test_a_replaced_file_in_a_real_sync_changes_nothing_and_queues_a_library_rea
     db, sync_all, _ = synced
     su = _jf_user(db)
     before = len(db.execute(select(LocalEvent)).scalars().all())
-    watched = [w for w in fakes.JF_WATCH["u-alex"] if w["Id"] != "jf-sh-2"]
-    monkeypatch.setitem(fakes.JF_WATCH, "u-alex", watched)
+    watched = [w for w in fakes.JF_WATCH["u-user1"] if w["Id"] != "jf-sh-2"]
+    monkeypatch.setitem(fakes.JF_WATCH, "u-user1", watched)
     fakes.JF_GONE.add("jf-sh-2")  # Jellyfin gave the episode a new id
     syncs = app.state.syncs
     jf = db.execute(select(Source).where(Source.type == "jellyfin")).scalar_one()
@@ -151,4 +151,4 @@ def test_jellyfin_asks_as_the_user(synced):
     jf = db.execute(select(Source).where(Source.type == "jellyfin")).scalar_one()
     fakes.JF_GONE.add("b")
     with connector_for(jf, __import__("types").SimpleNamespace(decrypt=lambda v: "k")) as c:
-        assert c.items_exist(UserRecord("u-alex", "alex"), ["a", "b", "c"]) == {"a", "c"}
+        assert c.items_exist(UserRecord("u-user1", "user1"), ["a", "b", "c"]) == {"a", "c"}
