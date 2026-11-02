@@ -1,10 +1,11 @@
 """Quick (watch-state) syncs, the scheduler, and the Activity page."""
 
 from concurrent.futures import ThreadPoolExecutor
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
+from mediawrangler.config import get_settings
 from mediawrangler.db import utcnow
 from mediawrangler.models import Source, SyncRun, WatchEvent
 from mediawrangler.scheduler import Scheduler, next_run
@@ -122,6 +123,8 @@ def test_schedule_fields_validate_and_save(synced, logged_in, app):  # noqa: F81
     bad = post(logged_in, url, {**form, "quick_mode": "every", "quick_every": "2"})
     assert bad.status_code == 400 and "Watch-state sync" in bad.text
     bad = post(logged_in, url, {**form, "schedule_mode": "at", "schedule_at": "25:00"})
+    # A daily time half a day away, so the 15-minute watch-state sync is always next.
+    at = (datetime.now(get_settings().timezone) + timedelta(hours=12)).strftime("%H:%M")
     assert bad.status_code == 400 and "HH:MM" in bad.text
     ok = post(
         logged_in,
@@ -131,7 +134,7 @@ def test_schedule_fields_validate_and_save(synced, logged_in, app):  # noqa: F81
             "quick_mode": "every",
             "quick_every": "15",
             "schedule_mode": "at",
-            "schedule_at": "04:00",
+            "schedule_at": at,
         },
     )
     assert ok.status_code == 303
@@ -140,13 +143,11 @@ def test_schedule_fields_validate_and_save(synced, logged_in, app):  # noqa: F81
         15,
         None,
         None,
-        "04:00",
+        at,
     )
     page = logged_in.get(url).text
-    assert 'name="quick_every" value="15"' in page and 'name="schedule_at" value="04:00"' in page
-    # The 04:00 full sync comes first in the quarter hour before it, so ask which is next.
-    label = "Watch-state sync" if next_run(db, jf)[0] == "quick" else "Full sync"
-    assert label in logged_in.get("/").text
+    assert 'name="quick_every" value="15"' in page and f'name="schedule_at" value="{at}"' in page
+    assert "Watch-state sync" in logged_in.get("/").text
     hours = post(
         logged_in,
         url,
