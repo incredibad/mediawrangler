@@ -162,7 +162,9 @@ def _fill(app, box):
         user1 = AppUser(name="user1")
         s.add(user1)
         s.flush()
-        s.add(UserSync(app_user_id=user1.id, source_id=silo.id, sync_account=True, sync_history=True))
+        s.add(
+            UserSync(app_user_id=user1.id, source_id=silo.id, sync_account=True, sync_history=True)
+        )
         s.add(
             SourceUser(
                 source_id=jf.id,

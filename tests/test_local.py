@@ -168,7 +168,9 @@ def test_an_unwatch_of_one_copy_is_ignored_while_another_copy_is_played(synced):
 def test_an_unwatch_then_a_rewatch_in_one_batch_does_not_trip_the_unique_key(synced):
     db, *_ = synced
     user1 = _person(db, "user1")
-    state = db.execute(select(LocalState).where(LocalState.app_user_id == user1.id)).scalars().first()
+    state = (
+        db.execute(select(LocalState).where(LocalState.app_user_id == user1.id)).scalars().first()
+    )
     key = (state.kind, state.canonical_id, state.season, state.episode)
     store = local._Store(db, user1.id)
     store.drop(key)  # the unwatch ...

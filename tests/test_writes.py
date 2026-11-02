@@ -190,7 +190,8 @@ def test_pause_keeps_the_queue_and_resume_sends_it(synced, app):
     _switch_on(db, user1)
     writes.set_flag(db, writes.PAUSED_KEY, True)
     with app.state.db.sessionmaker() as s:
-        writes.enqueue(s, s.get(type(user1), user1.id), writes.plan_person(s, s.get(type(user1), user1.id)))
+        person = s.get(type(user1), user1.id)
+        writes.enqueue(s, person, writes.plan_person(s, person))
     _cycle(app)
     assert not fakes.SILO_WRITES
     assert writes.status(db)["pending"] > 0

@@ -173,7 +173,8 @@ def test_import_is_another_column_and_replaces(synced):  # noqa: F811
     imports, rows = elsewhere(db, user1.id, 1_000_000)
     assert [i.id for i in imports] == [imp.id] and rows == []  # nothing is left for the tab
 
-    apply_import(db, user1.id, "trakt", "again.zip", parse_trakt(_trakt_zip(movies=[("Heat", 949)])))
+    again = parse_trakt(_trakt_zip(movies=[("Heat", 949)]))
+    apply_import(db, user1.id, "trakt", "again.zip", again)
     assert len(db.execute(select(WatchImport)).scalars().all()) == 1
 
 

@@ -94,7 +94,9 @@ def test_account_lockout(client):
     client.cookies.clear()
     for _ in range(lockout.MAX_FAILURES_PER_ACCOUNT):
         assert (
-            post(client, "/login", {"username": "user1", "password": "wrong-wrong-wrong"}).status_code
+            post(
+                client, "/login", {"username": "user1", "password": "wrong-wrong-wrong"}
+            ).status_code
             == 401
         )
     resp = post(client, "/login", {"username": "user1", "password": PASSWORD})

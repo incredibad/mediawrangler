@@ -210,7 +210,13 @@ def test_a_plugin_warning_is_kept_as_an_error(hooks, synced):  # noqa: F811
 
 
 def play(
-    session, item, completed, watched=3500, duration=3600, profile=USER1, ended="2026-10-27T01:00:00Z"
+    session,
+    item,
+    completed,
+    watched=3500,
+    duration=3600,
+    profile=USER1,
+    ended="2026-10-27T01:00:00Z",
 ):
     return {
         "session_id": session,
@@ -537,7 +543,8 @@ def test_jellyfin_played_unplayed_and_progress_are_applied(jf_hooks, synced):  #
     rows = list(db.execute(select(WebhookEvent).order_by(WebhookEvent.id)).scalars())
     assert [r.status for r in rows] == ["applied"] * 3
     assert (
-        "user1 watched Sherlock S01E03" in rows[0].summary and "stopped at 10 min" in rows[2].summary
+        "user1 watched Sherlock S01E03" in rows[0].summary
+        and "stopped at 10 min" in rows[2].summary
     )
 
 

@@ -122,7 +122,9 @@ def test_a_jellyfin_account_gets_the_matching_libraries(synced, app):
         select(SourceUser).where(SourceUser.source_id == jf.id, SourceUser.app_user_id == user1.id)
     ).scalar_one().removed_at = utcnow()
     origin = db.execute(
-        select(SourceUser).where(SourceUser.source_id == silo.id, SourceUser.app_user_id == user1.id)
+        select(SourceUser).where(
+            SourceUser.source_id == silo.id, SourceUser.app_user_id == user1.id
+        )
     ).scalar_one()
     from mediawrangler.models import Library
 
