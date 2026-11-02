@@ -50,7 +50,7 @@ def test_jellyfin_fetch_pages_and_skips_virtual_episodes():
     assert [lib.kind for lib in snap.libraries] == ["series", "series", "movie", "series", "other"]
     eps = [i for i in snap.items if i.kind == "episode"]
     assert "jf-poi-v" not in {e.external_id for e in eps}
-    assert len(eps) == 4 + 1 + 5
+    assert len({e.external_id for e in eps}) == len(eps) == 4 + 1 + 5  # none lost between pages
     sherlock = next(i for i in snap.items if i.external_id == "jf-sherlock")
     assert (sherlock.tvdb, sherlock.tmdb, sherlock.year) == ("176941", "19885", 2010)
 

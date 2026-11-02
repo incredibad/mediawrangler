@@ -36,6 +36,9 @@ from .base import (
 )
 
 PAGE_SIZE = 1000
+# Paging needs a fixed order: unsorted, Jellyfin's pages can overlap and skip items (a
+# 1,500-film library read as 1,000). DateCreated breaks ties between equal names.
+PAGE_ORDER = {"SortBy": "SortName,ProductionYear,DateCreated", "SortOrder": "Ascending"}
 LIBRARY_KINDS = {"tvshows": "series", "movies": "movie"}
 ITEM_KINDS = {"Series": "series", "Movie": "movie", "Episode": "episode"}
 
@@ -310,6 +313,7 @@ class JellyfinConnector(Connector):
                 EnableUserData="false",
                 StartIndex=start,
                 Limit=PAGE_SIZE,
+                **PAGE_ORDER,
             )
             items = page.get("Items") or []
             yield from items
@@ -452,6 +456,7 @@ class JellyfinConnector(Connector):
                     EnableUserData="false",
                     StartIndex=start,
                     Limit=PAGE_SIZE,
+                    **PAGE_ORDER,
                 )
                 rows = page.get("Items") or []
                 for raw in rows:
@@ -531,6 +536,7 @@ class JellyfinConnector(Connector):
                     EnableImages="false",
                     StartIndex=start,
                     Limit=PAGE_SIZE,
+                    **PAGE_ORDER,
                 )
                 items = page.get("Items") or []
                 for raw in items:

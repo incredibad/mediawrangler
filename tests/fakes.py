@@ -201,6 +201,7 @@ def jellyfin_handler(page_size: int = 2):
                 r for r in JF_WATCH.get(q["userId"][0], []) if r["UserData"]["Played"] == played
             ]
             start = int(q["StartIndex"][0])
+            rows = unsorted(rows, q, start)
             return httpx.Response(
                 200, json={"Items": rows[start : start + page_size], "TotalRecordCount": len(rows)}
             )
@@ -208,6 +209,7 @@ def jellyfin_handler(page_size: int = 2):
             q = parse_qs(request.url.query.decode())
             rows = JF_ITEMS[(q["ParentId"][0], q["IncludeItemTypes"][0])]
             start = int(q["StartIndex"][0])
+            rows = unsorted(rows, q, start)
             limit = min(int(q["Limit"][0]), page_size)  # force paging in tests
             return httpx.Response(
                 200, json={"Items": rows[start : start + limit], "TotalRecordCount": len(rows)}
@@ -215,6 +217,11 @@ def jellyfin_handler(page_size: int = 2):
         return httpx.Response(404)
 
     return handler
+
+
+def unsorted(rows: list, q: dict, start: int) -> list:
+    """Like Jellyfin: without SortBy, later pages may come back in another order."""
+    return rows if "SortBy" in q or not start else rows[::-1]
 
 
 SILO_LIBS = [
