@@ -23,7 +23,7 @@
   </form>
   {% if trash_problem %}<div class="flash bad">{{ trash_problem }}</div>{% endif %}
   <p class="muted small">Leave it empty and each file goes to a <code>.mediawrangler-trash</code> folder inside its own library folder. Or give one folder for everything (a full path as MediaWrangler sees it, for example <code>/media/.trash</code>; it must exist, be writable and sit outside every library folder; start the name with a dot so it is never read as a library). Files are sorted there by date and library. On the same disk a move is instant; on another disk the file is copied, checked, then removed.</p>
-  {% if not share_writable %}<p class="muted small">To allow it, mount those folders read-write in <code>compose.yaml</code> and run <code>docker compose up -d</code>; leave the rest of the share read-only.</p>{% endif %}
+  {% if not share_writable %}<p class="muted small">To allow it, mount the share read-write (<code>:rw</code>) in <code>docker-compose.yml</code> and run <code>docker compose up -d</code>.</p>{% endif %}
 </section>
 
 <section class="card">

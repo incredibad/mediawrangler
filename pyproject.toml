@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mediawrangler"
-version = "0.12.101"
+version = "0.12.102"
 description = "Self-hosted hub that compares and syncs media and watch state across media apps."
 readme = "README.md"
 requires-python = ">=3.11"

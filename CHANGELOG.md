@@ -7,6 +7,17 @@ one build stage of the roadmap.
 
 ## [Unreleased]
 
+## [0.12.102] - 2026-11-02
+
+### Changed
+- Deploy with one `docker-compose.yml` that pulls `incredibad/mediawrangler` from Docker Hub;
+  its settings sit in the file (or an optional `.env`). It replaces `compose.yaml`.
+- No secret key to make by hand: the key that encrypts your apps' API keys is made on first
+  start as `secret.key` in the data folder and goes into every backup. `MW_SECRET_KEY_FILE`
+  still works for keeping it elsewhere. The README says what the key is for.
+- Images are built and pushed by GitHub Actions: `dev` → `:dev`, `main` → `:latest` and the
+  version, for amd64 and arm64, after lint and tests pass.
+
 ## [0.12.101] - 2026-11-02
 
 ### Changed

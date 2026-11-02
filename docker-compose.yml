@@ -1,0 +1,33 @@
+# MediaWrangler. Change the values on the right of ":-" below (or set them in a .env file
+# next to this one), then: docker compose up -d
+services:
+  mediawrangler:
+    image: incredibad/mediawrangler:${MW_VERSION:-latest}
+    container_name: mediawrangler
+    restart: unless-stopped
+    ports:
+      - "${MW_PORT:-8790}:${MW_PORT:-8790}"
+      # Webhooks from your apps: LAN only, never put this behind a public proxy.
+      - "${MW_WEBHOOK_PORT:-8791}:${MW_WEBHOOK_PORT:-8791}"
+    environment:
+      # The URL you open MediaWrangler at. https:// turns on secure cookies and HSTS
+      # (internet-facing); http:// means LAN-only mode.
+      MW_PUBLIC_URL: ${MW_PUBLIC_URL:-http://localhost:8790}
+      # IPs/CIDRs of your reverse proxy (comma separated), so real client IPs are used for
+      # lockout and the sign-in log. Empty if there is no proxy.
+      MW_TRUSTED_PROXIES: ${MW_TRUSTED_PROXIES:-}
+      # Library folders on the share (comma separated); empty lists every top-level folder.
+      MW_MEDIA_FOLDERS: ${MW_MEDIA_FOLDERS:-}
+      MW_PORT: ${MW_PORT:-8790}
+      # Where your apps send webhooks; 0 turns it off.
+      MW_WEBHOOK_PORT: ${MW_WEBHOOK_PORT:-8791}
+      TZ: ${TZ:-UTC}
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
+      MW_LOG_LEVEL: ${MW_LOG_LEVEL:-info}
+    volumes:
+      # Database, backups and the encryption key (secret.key, made on first start).
+      - ${MW_HOST_DATA_DIR:-./data}:/data
+      # The whole media share as one mount, so moving a file to the trash is an instant
+      # rename. Files are only ever changed with Settings → Writes → File changes switched on.
+      - ${MW_HOST_MEDIA_DIR:-/mnt/media}:/media:rw

@@ -12,14 +12,21 @@ See `CHANGELOG.md`.
 
 ## Run it
 
+Download [`docker-compose.yml`](docker-compose.yml), set the values in it (or in a
+`.env` file next to it, see [`.env.example`](.env.example)), then:
+
 ```sh
-cp .env.example .env && chmod 600 .env        # then edit it
-mkdir -p secrets && openssl rand -base64 48 > secrets/secret.key && chmod 600 secrets/secret.key
-docker compose up -d --build
+docker compose up -d
 ```
 
-Open `MW_PUBLIC_URL` and create the admin account. Keep `secrets/secret.key`
-safe: stored connector keys can't be decrypted without it.
+Open `MW_PUBLIC_URL` and create the admin account.
+
+The API keys you give MediaWrangler for your apps are stored encrypted. The key for
+that is made on first start as `secret.key` in the data folder, and every backup
+includes it. If you move or restore the database by hand, take `secret.key` with it:
+without it the stored app keys can't be read and have to be entered again. To keep
+the key outside the data folder instead, point `MW_SECRET_KEY_FILE` at a file
+holding it (e.g. a Docker secret).
 
 - **LAN-only:** set `MW_PUBLIC_URL=http://<host>:8790`. Two-factor is optional.
 - **Internet-facing:** put it behind a TLS reverse proxy, set
@@ -27,12 +34,11 @@ safe: stored connector keys can't be decrypted without it.
   turn on two-factor in Settings → Security. Secure cookies then only work over
   https, so use the https URL from the LAN too.
 
-MediaWrangler does not change media files unless you allow it: mount the share
-read-only (as in `compose.yaml`). `compose.yaml` mounts only the library folders in
-use, plus a `.trash` folder, so nothing else on the share is visible to it; add a line
-there for a new library. They are read-write so it can move orphaned files you choose
-into a reversible trash folder (kept 30 days), once you switch on "File changes" under
-Settings → Writes.
+MediaWrangler does not change media files unless you allow it. The share is mounted
+read-write so that, once you switch on "File changes" under Settings → Writes, it can
+move orphaned files you choose into a reversible trash folder (kept 30 days).
+`MW_MEDIA_FOLDERS` names the library folders it lists; nothing else on the share is
+read.
 
 ## Develop
 
