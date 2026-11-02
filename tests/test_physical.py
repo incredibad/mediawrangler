@@ -4,7 +4,7 @@ import httpx
 import pytest
 from sqlalchemy import select
 
-from mediawrangler.connectors.paths import is_extra, is_video
+from mediawrangler.connectors.paths import PathMap, is_extra, is_video
 from mediawrangler.ingest import recanonicalise
 from mediawrangler.models import (
     Library,
@@ -14,8 +14,9 @@ from mediawrangler.models import (
     Source,
     SourceItem,
 )
-from mediawrangler.physical import build_physical_view, filter_rows, folder_detail
+from mediawrangler.physical import build_physical_view, filter_rows, folder_detail, set_not_managed
 from mediawrangler.presence import build_group_view
+from mediawrangler.presence import filter_rows as filter_presence
 from mediawrangler.sync import ensure_disk_source
 
 from .conftest import filter_options, post, summary_col, table_rows
@@ -458,8 +459,24 @@ def test_presence_shows_what_the_arrs_track_without_comparing_them(synced, logge
     # tracks under other IDs than the servers' (The Stand).
     compared = [f for r in view.rows for f in r.flags if f.endswith(f":{sonarr}")]
     assert set(compared) == {f"arr_mismatch:{sonarr}"}  # (a row for each The Stand)
+    # A title the servers have that no arr tracks is an issue of its own.
+    untracked = [r for r in view.rows if "untracked" in r.flags]
+    assert untracked and "Sherlock" not in {r.canonical.title for r in untracked}
+    assert untracked == [r for r in view.rows if r.cells[sonarr].state == "untracked"]
+    assert view.summaries[sonarr].untracked == len(untracked)
+    issues = filter_presence(view, "issues")
+    assert all(r in issues for r in untracked)
+    # Marking its folder "not managed by an arr" (Physical page) clears the flag here too.
+    jf = view.columns[0]
+    item = next(i for r in untracked for i in r.cells[jf.id].items if i.path)
+    folder = PathMap.from_pairs(jf.path_map or []).apply(item.path)  # the series folder
+    set_not_managed(db, folder, "Fan edit")
+    marked = next(r for r in build_group_view(db, tv).rows if r.canonical.id == item.canonical_id)
+    assert "untracked" not in marked.flags
+    set_not_managed(db, folder, None)
     page = logged_in.get(f"/presence?group={tv.id}&filter=all").text
     assert "Tracked" in page and "Not tracked" in page and "are not compared" not in page
+    assert "Not in any arr: add it on the Physical page" in page
     assert "Sonarr" in summary_col(page, "Sonarr")
 
 

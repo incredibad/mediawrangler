@@ -23,6 +23,7 @@
         <div class="stats">
           {% call dx.stat("Tracked" if col.id in arr_ids else "Total", true) %}{{ "{:,}".format(s.total) }}{% if ms and col.id != view.master_id and col.id not in arr_ids %} {{ dx.delta(s.total, ms.total, master_name) }}{% endif %}{% endcall %}
           {% if col.id in arr_ids %}
+            {% if loop.index0 == view.columns | length %}{% call dx.stat("Not in any arr") %}{{ dx.count_link(s.untracked, "", link(filter='untracked'), "untracked") }}{% endcall %}{% endif %}
           {% elif col.id != view.master_id %}
             {% call dx.stat("Missing") %}{{ dx.count_link(s.missing, "−", link(filter='missing', source=col.id), "missing", col.id) }}{% endcall %}
             {% call dx.stat("Unconfirmed") %}{{ dx.count_link(s.low, "", link(filter='low'), "low") }}{% endcall %}
@@ -38,7 +39,7 @@
       </div>
     {% endfor %}
   </div>
-  {% if view.columns | length < 2 %}
+  {% if all_cols | length < 2 %}
     <p class="flash warn">Only one app is mapped to this group, so there's nothing to compare. <a href="/settings/groups">Map another app's library</a>.</p>
   {% endif %}
 </section>
@@ -91,6 +92,10 @@
                 </form>
               {% endfor %}
             {% endfor %}
+            {% if "untracked" in row.flags %}
+            <div class="fix-group">{{ view.arrs | map(attribute="name") | join(" / ") }}</div>
+            <a href="/physical?group={{ current.id }}&filter=all&q={{ row.canonical.title | urlencode }}">Not in any arr: add it on the Physical page<span class="hint">Add to an arr (unmonitored), or mark it not managed.</span></a>
+            {% endif %}
             {% if file_issue %}
             <div class="fix-group">Files</div>
             <a href="/physical?group={{ current.id }}&filter=all&q={{ row.canonical.title | urlencode }}">Files problem: compare on the Physical page<span class="hint">Missing specials, duplicates, extras.</span></a>
@@ -107,6 +112,8 @@
                 {% set tips = [] %}
                 {% for la in cell.look_alike %}{% set ids = [] %}{% for t in ["tvdb", "tmdb", "imdb"] %}{% if la[t] %}{% set _ = ids.append(t ~ " " ~ la[t]) %}{% endif %}{% endfor %}{% set _ = tips.append(col.name ~ " has “" ~ la.title ~ "” with other IDs (" ~ (ids | join(", ")) ~ "): probably the same show matched wrongly") %}{% endfor %}
                 <span class="warn-text" data-tip="{{ tips | join('; ') }}">Not tracked ⚠</span>
+              {% elif "untracked" in row.flags %}
+                <span class="warn-text">Not tracked</span>
               {% else %}
                 <span class="muted">Not tracked</span>
               {% endif %}

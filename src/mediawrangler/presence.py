@@ -48,6 +48,7 @@ class SourceSummary:
     episode_mismatch: int = 0
     specials_mismatch: int = 0
     duplicates: int = 0
+    untracked: int = 0  # arrs: titles a media server has that no arr tracks
 
 
 @dataclass
@@ -62,6 +63,8 @@ class GroupView:
     # Sonarr and Radarr: they say which titles they track, but take no part in
     # the comparison (they track titles they have no files for). Their cells
     # are "tracked" or "untracked", and only titles a media server has get a row.
+    # A title no arr tracks is flagged "untracked", unless its folder is marked
+    # "not managed by an arr" on the Physical page.
     arrs: list[Source] = field(default_factory=list)
 
 
@@ -159,6 +162,11 @@ def build_group_view(db: Session, group: LibraryGroup) -> GroupView:
             if item.canonical_id not in by_canon:
                 unpaired[item.source_id][normalise_title(item.title)].append(item)
 
+    from .physical import not_managed  # physical imports this module
+
+    maps = {c.id: PathMap.from_pairs(c.path_map or []) for c in columns}
+    marks = not_managed(db) if arrs else {}
+
     rows: list[Row] = []
     for canon, members in by_canon.values():
         cells: dict[int, Cell] = {}
@@ -187,6 +195,12 @@ def build_group_view(db: Session, group: LibraryGroup) -> GroupView:
         for arr in arrs:
             if cells[arr.id].look_alike:
                 row.flags.update({"mismatch", f"arr_mismatch:{arr.id}"})
+        if arrs and not any(cells[a.id].state == "tracked" for a in arrs):
+            folders = {
+                maps[c.id].apply(i.path) for c in columns for i in cells[c.id].items if i.path
+            } - {None}
+            if not any(f == m or f.startswith(m + "/") for f in folders for m in marks):
+                row.flags.add("untracked")
         master_cell = cells.get(master_id) if master_id else None
         if master_cell is not None and master_cell.state == "missing":
             row.flags.add("not_in_master")
@@ -291,7 +305,6 @@ def build_group_view(db: Session, group: LibraryGroup) -> GroupView:
     # Same file, different identity: two apps play one film from the share but matched it to
     # different titles, so the rows share no name to pair them by.
     if group.kind == "movie":
-        maps = {c.id: PathMap.from_pairs(c.path_map or []) for c in columns}
         by_file: dict[str, list[Row]] = defaultdict(list)
         for row in rows:
             files = {
@@ -312,6 +325,7 @@ def build_group_view(db: Session, group: LibraryGroup) -> GroupView:
     for arr in arrs:
         summaries[arr.id] = SourceSummary(arr)
         summaries[arr.id].total = sum(r.cells[arr.id].state == "tracked" for r in rows)
+        summaries[arr.id].untracked = sum("untracked" in r.flags for r in rows)
     return GroupView(group, columns, master_id, rows, summaries, mismatches, arrs)
 
 
@@ -320,7 +334,16 @@ def build_group_view(db: Session, group: LibraryGroup) -> GroupView:
 FILTERS: dict[str, FilterSpec] = {
     "issues": FilterSpec(
         "All issues",
-        ("missing", "not_in_master", "low", "mismatch", "episodes", "specials", "duplicate"),
+        (
+            "missing",
+            "not_in_master",
+            "low",
+            "mismatch",
+            "episodes",
+            "specials",
+            "duplicate",
+            "untracked",
+        ),
         good_when_empty=True,
     ),
     "missing": FilterSpec("Missing somewhere", ("missing",), True, True),
@@ -330,6 +353,7 @@ FILTERS: dict[str, FilterSpec] = {
     "episodes": FilterSpec("Episode count differs", ("episodes",), good_when_empty=True),
     "specials": FilterSpec("Specials differ", ("specials",), good_when_empty=True),
     "duplicate": FilterSpec("Duplicates", ("duplicate",), good_when_empty=True),
+    "untracked": FilterSpec("Not in any arr", ("untracked",), good_when_empty=True),
     "all": FilterSpec("Everything"),
 }
 DEFAULT_FILTER = "issues"
