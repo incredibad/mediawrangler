@@ -10,7 +10,9 @@ one build stage of the roadmap.
 ### Changed
 - Sonarr's row under Connectors shows its episodes with files, the total Sonarr itself
   reports. It can be higher than Files, because a file holding two episodes counts twice.
-- Physical totals say how many of an arr's files come from folders marked not managed.
+- An arr's Physical totals count only its own files, so TV and Anime add up to what Sonarr
+  reports. Files in folders marked not managed show apart ("+535 not managed") and still
+  count when comparing with the master.
 
 ## [0.12.102] - 2026-11-02
 

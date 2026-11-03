@@ -58,7 +58,7 @@
           {% for col in physical_cols %}
             <td class="cell s{{ loop.index0 % 2 }}"><div class="pad">
             {% if col.id in ids %}{% set s = pv.summaries[col.id] %}
-              {{ "{:,}".format(s.files) }}{% if ref and col.id != pv.ref_id %} {{ dx.delta(s.files, ref.files, ref.source.name, true) }}{% endif %}{% if s.not_managed_files %} <span class="muted small" title="Files in folders marked not managed, counted from the share so they don't show as a difference.">incl. {{ "{:,}".format(s.not_managed_files) }} not managed</span>{% endif %}
+              {{ "{:,}".format(s.files) }}{% if ref and col.id != pv.ref_id %} {{ dx.delta(s.files + s.not_managed_files, ref.files, ref.source.name, true) }}{% endif %}{% if s.not_managed_files %} <span class="muted small" title="Files in folders marked not managed, which {{ s.source.name }} leaves out on purpose. They count toward the comparison with the master, not toward this total.">+{{ "{:,}".format(s.not_managed_files) }} not managed</span>{% endif %}
               <span class="muted small">{{ "{:,}".format(s.folders) }} folders</span>
             {% else %}<span class="muted">—</span>{% endif %}
             </div></td>

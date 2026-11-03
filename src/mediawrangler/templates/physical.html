@@ -20,7 +20,7 @@
       <div class="summary-col summary-box">
         <div class="summary-head">{{ dx.head(col) }}</div>
         <div class="stats">
-          {% call dx.stat("Files", true) %}{{ "{:,}".format(s.files) }}{% if rel %} {{ dx.delta(s.files, ref.files, ref_name) }}{% endif %}{% if s.not_managed_files %} <span class="muted small" title="Files in folders marked not managed, counted from the share so they don't show as a difference.">incl. {{ "{:,}".format(s.not_managed_files) }} not managed</span>{% endif %}{% endcall %}
+          {% call dx.stat("Files", true) %}{{ "{:,}".format(s.files) }}{% if rel %} {{ dx.delta(s.files + s.not_managed_files, ref.files, ref_name) }}{% endif %}{% if s.not_managed_files %} <span class="muted small" title="Files in folders marked not managed, which {{ s.source.name }} leaves out on purpose. They count toward the comparison with the master, not toward this total.">+{{ "{:,}".format(s.not_managed_files) }} not managed</span>{% endif %}{% endcall %}
           {% call dx.stat("Folders") %}{{ "{:,}".format(s.folders) }}{% if rel %} {{ dx.delta(s.folders, ref.folders, ref_name, true) }}{% endif %}{% endcall %}
           {% if s.size %}{% call dx.stat("Size") %}{{ s.size | filesize }}{% if rel and ref.size %} {{ dx.delta_size(s.size, ref.size, ref_name, true) }}{% endif %}{% endcall %}{% endif %}
           {% if s.role == "disk" %}
