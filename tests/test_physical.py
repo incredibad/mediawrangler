@@ -508,9 +508,11 @@ def test_folder_marked_not_managed_by_an_arr(synced, logged_in, app):
     row = next(r for r in view.rows if r.folder == folder)
     assert row.not_managed == "Fan edit" and "unmanaged" not in row.flags
     assert view.summaries[sonarr.id].issues["unmanaged"] == before - 1
-    # Sonarr's totals (Overview and Physical summaries) count the folder's files from the share.
-    assert view.summaries[sonarr.id].files == sonarr_files + dup_files
-    assert view.summaries[sonarr.id].folders == sonarr_folders + 1
+    # Sonarr's totals stay its own; the folder's share files are counted apart, for the
+    # comparison with the master.
+    assert view.summaries[sonarr.id].files == sonarr_files
+    assert view.summaries[sonarr.id].folders == sonarr_folders
+    assert view.summaries[sonarr.id].not_managed_files == dup_files
     assert row.name not in [r.name for r in filter_rows(view, "unmanaged")]
     page = logged_in.get(f"/physical?group={tv.id}&filter=all").text
     cells = page.split("<strong>Dup Show</strong>")[1].split("</tr>")[0]
