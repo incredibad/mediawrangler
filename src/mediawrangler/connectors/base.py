@@ -151,6 +151,8 @@ class FileRecord:
     extra: bool = False
     # Why a file does not belong in a library (see paths.odd_kind); such a file is also extra.
     flag: str | None = None
+    # Episodes the file holds, where the source says (Sonarr); only totalled, not stored.
+    episodes: int = 1
 
 
 @dataclass
@@ -177,6 +179,9 @@ class Snapshot:
     # Episodes with a file, as the app itself totals them (Sonarr: a file holding
     # two episodes counts twice), so its figure can be shown next to the file count.
     episodes_with_files: int | None = None
+    # Files holding more than one episode, and the episodes in them.
+    multi_episode_files: int | None = None
+    episodes_in_multi_files: int | None = None
 
 
 @dataclass

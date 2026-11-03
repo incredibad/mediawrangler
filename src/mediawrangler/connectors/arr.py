@@ -5,6 +5,7 @@ arr has on record become files. Read-only throughout.
 """
 
 import re
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
@@ -348,10 +349,12 @@ class SonarrConnector(_ArrConnector):
             return []
         # The first episode on each file gives its S/E (multi-episode files list several).
         first_ep: dict[int, tuple[int, int]] = {}
+        held: Counter[int] = Counter()
         for ep in self._get_json("/api/v3/episode", seriesId=sid):
             fid = ep.get("episodeFileId")
-            if fid and fid not in first_ep:
-                first_ep[fid] = (ep.get("seasonNumber"), ep.get("episodeNumber"))
+            if fid:
+                held[fid] += 1
+                first_ep.setdefault(fid, (ep.get("seasonNumber"), ep.get("episodeNumber")))
         out = []
         for f in files:
             season, episode = first_ep.get(f["id"], (f.get("seasonNumber"), None))
@@ -363,6 +366,7 @@ class SonarrConnector(_ArrConnector):
                     item_external_id=f"series-{sid}",
                     season=season,
                     episode=episode,
+                    episodes=held.get(f["id"]) or 1,
                 )
             )
         return out
@@ -392,7 +396,15 @@ class SonarrConnector(_ArrConnector):
                 if done % 50 == 0:
                     progress(f"Read files for {done} of {len(with_files)} series")
         episodes = sum((s.get("statistics") or {}).get("episodeFileCount") or 0 for s in series)
-        return Snapshot(libraries=roots, items=items, files=files, episodes_with_files=episodes)
+        multi = [f.episodes for f in files if f.episodes > 1]
+        return Snapshot(
+            libraries=roots,
+            items=items,
+            files=files,
+            episodes_with_files=episodes,
+            multi_episode_files=len(multi),
+            episodes_in_multi_files=sum(multi),
+        )
 
 
 @register

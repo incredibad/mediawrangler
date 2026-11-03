@@ -1071,7 +1071,11 @@ class SyncManager:
                     **stats.as_dict(),
                     **({"scan": scan} if scan else {}),
                     **(
-                        {"episodes_with_files": snapshot.episodes_with_files}
+                        {
+                            "episodes_with_files": snapshot.episodes_with_files,
+                            "multi_episode_files": snapshot.multi_episode_files,
+                            "episodes_in_multi_files": snapshot.episodes_in_multi_files,
+                        }
                         if snapshot.episodes_with_files is not None
                         else {}
                     ),
