@@ -396,14 +396,19 @@ class SonarrConnector(_ArrConnector):
                 if done % 50 == 0:
                     progress(f"Read files for {done} of {len(with_files)} series")
         episodes = sum((s.get("statistics") or {}).get("episodeFileCount") or 0 for s in series)
-        multi = [f.episodes for f in files if f.episodes > 1]
+        titles = {rec.external_id: rec.title for rec in items}
+        multi: dict[str, list] = {}
+        for f in files:
+            if f.episodes > 1:
+                m = multi.setdefault(f.item_external_id, [titles.get(f.item_external_id, ""), 0, 0])
+                m[1] += 1
+                m[2] += f.episodes
         return Snapshot(
             libraries=roots,
             items=items,
             files=files,
             episodes_with_files=episodes,
-            multi_episode_files=len(multi),
-            episodes_in_multi_files=sum(multi),
+            multi_episode_series=sorted(multi.values(), key=lambda m: (m[1] - m[2], m[0])),
         )
 
 

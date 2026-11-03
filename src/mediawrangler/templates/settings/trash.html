@@ -33,4 +33,14 @@
   </form>
   {% endif %}
 </section>
+
+<section class="card">
+  <h2>Trash folder</h2>
+  <form method="post" action="/settings/trash/dir" class="row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label class="inline-label">Trash folder <input type="text" name="trash_dir" value="{{ trash_dir }}" size="36" placeholder="empty: inside each library folder" spellcheck="false"></label>
+    <button type="submit">Save</button>
+  </form>
+  <p class="muted small">Leave it empty and each file goes to a <code>.mediawrangler-trash</code> folder inside its own library folder. Or give one folder for everything (a full path as MediaWrangler sees it, for example <code>/media/.trash</code>; it must exist, be writable and sit outside every library folder; start the name with a dot so it is never read as a library). Files are sorted there by date and library. On the same disk a move is instant; on another disk the file is copied, checked, then removed.</p>
+</section>
 {% endblock %}

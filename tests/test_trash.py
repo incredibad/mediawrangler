@@ -805,3 +805,12 @@ def test_a_folder_no_arr_tracks_can_have_its_leftovers_trashed(orphan, app, logg
     assert not os.path.exists(folder)
     assert "back" in trash.restore(db, next(m for m in moved if "poster" in m.original_path))
     assert os.path.isfile(os.path.join(folder, "Extras", "poster.jpg"))
+
+
+def test_the_trash_folder_is_set_on_the_trash_page(logged_in):
+    assert 'action="/settings/trash/dir"' in logged_in.get("/settings/trash").text
+    assert "trash_dir" not in logged_in.get("/settings/writes").text
+    bad = post(logged_in, "/settings/trash/dir", {"trash_dir": "relative/path"})
+    assert bad.status_code == 303 and "problem=" in bad.headers["location"]
+    good = post(logged_in, "/settings/trash/dir", {"trash_dir": ""})
+    assert good.headers["location"] == "/settings/trash?ok=Trash+folder+saved."

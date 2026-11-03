@@ -10,6 +10,7 @@ from starlette.requests import Request
 from .. import __version__
 from ..connectors import connector_types
 from ..groups import get_master
+from ..models import AppSetting
 from ..scheduler import type_can_quick
 
 TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -42,6 +43,18 @@ def _master_id(request: Request, user) -> int | None:
         return master.id if master else None
 
 
+# Sign-ins that closed the "two-factor is off" banner; not exported with the settings.
+TOTP_BANNER_DISMISSED_KEY = "totp_banner_dismissed"
+
+
+def _show_totp_banner(request: Request, user) -> bool:
+    if user is None or user.totp_enabled:
+        return False
+    with request.app.state.db.sessionmaker() as session:
+        row = session.get(AppSetting, TOTP_BANNER_DISMISSED_KEY)
+        return user.id not in (row.value if row else [])
+
+
 def _context(request: Request) -> dict:
     user = getattr(request.state, "user", None)
     flash = FLASH_MESSAGES.get(request.query_params.get("msg", ""))
@@ -49,7 +62,7 @@ def _context(request: Request) -> dict:
         "version": __version__,
         "csrf_token": getattr(request.state, "csrf_token", ""),
         "user": user,
-        "show_totp_banner": bool(user and not user.totp_enabled),
+        "show_totp_banner": _show_totp_banner(request, user),
         "master_id": _master_id(request, user),
         "flash": flash,
         "path": request.url.path,

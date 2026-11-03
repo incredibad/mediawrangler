@@ -184,6 +184,21 @@ def _enable_totp(client) -> tuple[str, list[str]]:
     return secret, [c.split("</code>")[0] for c in codes]
 
 
+def test_totp_banner_can_be_dismissed_for_good(client):
+    setup_admin(client)
+    assert "Two-factor authentication is off" in client.get("/").text
+    resp = post(
+        client,
+        "/settings/security/totp-banner/dismiss",
+        headers={"referer": "http://testserver/physical?group=1"},
+    )
+    assert resp.status_code == 303 and resp.headers["location"] == "/physical?group=1"
+    assert "Two-factor authentication is off" not in client.get("/").text
+    client.cookies.clear()  # still gone after signing in again
+    post(client, "/login", {"username": "user1", "password": PASSWORD})
+    assert "Two-factor authentication is off" not in client.get("/").text
+
+
 def test_totp_enable_and_login(client, app, monkeypatch):
     setup_admin(client)
     secret, codes = _enable_totp(client)

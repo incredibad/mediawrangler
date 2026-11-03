@@ -33,6 +33,11 @@
     <div class="banner warn">
       Two-factor authentication is off. If MediaWrangler is reachable from the internet,
       <a href="/settings/security/totp">turn it on</a>.
+      <form method="post" action="/settings/security/totp-banner/dismiss" class="banner-close"
+        hx-post="/settings/security/totp-banner/dismiss" hx-target="closest .banner" hx-swap="outerHTML">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button type="submit" class="link" aria-label="Dismiss for good" title="Dismiss for good">&times;</button>
+      </form>
     </div>
   {% endif %}
 {% endif %}

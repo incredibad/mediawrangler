@@ -11,18 +11,11 @@
 
 <section class="card">
   <h2>Changing files</h2>
-  <p class="muted">Off by default. When on, you can move orphaned files (files an arr tracks the folder for but has no record of) to a trash folder from a folder's page on Physical. Nothing is deleted outright: files sit in <code>.mediawrangler-trash</code> inside their library folder, can be put back from <a href="/settings/trash">Trash</a>, and are deleted for good after 30 days. Each move re-checks that the file is a video inside a library folder, is still there, and that the arr still has no record of it, and is recorded in the audit log.</p>
+  <p class="muted">Off by default. When on, you can move orphaned files (files an arr tracks the folder for but has no record of) to a trash folder from a folder's page on Physical. Nothing is deleted outright: files sit in <code>.mediawrangler-trash</code> inside their library folder, can be put back from <a href="/settings/trash">Trash</a> (where you can also choose another trash folder), and are deleted for good after 30 days. Each move re-checks that the file is a video inside a library folder, is still there, and that the arr still has no record of it, and is recorded in the audit log.</p>
   <div class="head-actions">
     <label class="switch"><input type="checkbox" name="on" {% if files_on %}checked{% endif %} hx-post="/settings/writes/switch/files" hx-trigger="change" hx-target="#writes-controls" hx-swap="outerHTML"> File changes</label>
     <span class="status {{ 'ok' if share_writable else 'unknown' }}">{{ "Library folders and trash are writable" if share_writable else "Read-only: " ~ (readonly | join(", ")) }}</span>
   </div>
-  <form method="post" action="/settings/writes/trash-dir" class="row">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-    <label class="inline-label">Trash folder <input type="text" name="trash_dir" value="{{ trash_dir }}" size="36" placeholder="empty: inside each library folder" spellcheck="false"></label>
-    <button type="submit">Save</button>
-  </form>
-  {% if trash_problem %}<div class="flash bad">{{ trash_problem }}</div>{% endif %}
-  <p class="muted small">Leave it empty and each file goes to a <code>.mediawrangler-trash</code> folder inside its own library folder. Or give one folder for everything (a full path as MediaWrangler sees it, for example <code>/media/.trash</code>; it must exist, be writable and sit outside every library folder; start the name with a dot so it is never read as a library). Files are sorted there by date and library. On the same disk a move is instant; on another disk the file is copied, checked, then removed.</p>
   {% if not share_writable %}<p class="muted small">To allow it, mount the share read-write (<code>:rw</code>) in <code>docker-compose.yml</code> and run <code>docker compose up -d</code>.</p>{% endif %}
 </section>
 

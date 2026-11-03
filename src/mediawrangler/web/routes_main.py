@@ -70,8 +70,7 @@ def _source_rows(db: Session) -> list[dict]:
                 "episodes": counts.get((s.id, "episode"), 0),
                 "files": files.get(s.id, 0),
                 "episodes_with_files": (full or {}).get("episodes_with_files"),
-                "multi_episode_files": (full or {}).get("multi_episode_files"),
-                "episodes_in_multi_files": (full or {}).get("episodes_in_multi_files"),
+                "multi_episode_series": (full or {}).get("multi_episode_series") or [],
                 "last_run": last,
                 "next": next_run(db, s),
             }

@@ -2,7 +2,7 @@ import httpx
 from sqlalchemy import select
 
 from mediawrangler.connectors import ConnectorConfig, connector_types
-from mediawrangler.connectors.arr import RadarrConnector, SportarrConnector
+from mediawrangler.connectors.arr import RadarrConnector, SonarrConnector, SportarrConnector
 from mediawrangler.connectors.base import ConnectionTest
 from mediawrangler.connectors.jellyfin import JellyfinConnector
 from mediawrangler.connectors.silo import SiloConnector
@@ -103,6 +103,45 @@ def test_arr_status_and_sportarr_native_path():
     assert paths == ["/api/v3/system/status", "/api/system/status"]
 
 
+def test_sonarr_totals_episodes_with_files_and_shows_with_multi_episode_files():
+    series = [
+        {"id": 1, "title": "Cartoon", "path": "/tv/Cartoon", "statistics": {"episodeFileCount": 3}},
+        {"id": 2, "title": "Drama", "path": "/tv/Drama", "statistics": {"episodeFileCount": 1}},
+    ]
+    files = {
+        "1": [
+            {"id": 10, "path": "/tv/Cartoon/S01E01-E02.mkv"},
+            {"id": 11, "path": "/tv/Cartoon/S01E03.mkv"},
+        ],
+        "2": [{"id": 20, "path": "/tv/Drama/S01E01.mkv"}],
+    }
+    episodes = {
+        "1": [
+            {"seasonNumber": 1, "episodeNumber": 1, "episodeFileId": 10},
+            {"seasonNumber": 1, "episodeNumber": 2, "episodeFileId": 10},
+            {"seasonNumber": 1, "episodeNumber": 3, "episodeFileId": 11},
+        ],
+        "2": [{"seasonNumber": 1, "episodeNumber": 1, "episodeFileId": 20}],
+    }
+
+    def handler(request: httpx.Request):
+        path, sid = request.url.path, request.url.params.get("seriesId")
+        if path == "/api/v3/rootfolder":
+            return httpx.Response(200, json=[{"id": 1, "path": "/tv"}])
+        if path == "/api/v3/series":
+            return httpx.Response(200, json=series)
+        if path == "/api/v3/episodefile":
+            return httpx.Response(200, json=files[sid])
+        if path == "/api/v3/episode":
+            return httpx.Response(200, json=episodes[sid])
+        return httpx.Response(404)
+
+    snap = SonarrConnector(ConnectorConfig("http://s", "k"), _client(handler)).fetch_full()
+    assert len(snap.files) == 3
+    assert snap.episodes_with_files == 4
+    assert snap.multi_episode_series == [["Cartoon", 1, 2]]
+
+
 def test_unreachable_host():
     def handler(request):
         raise httpx.ConnectError("refused")
@@ -130,11 +169,12 @@ def _new_connector(client, **overrides):
 def test_create_connector_encrypts_key_and_never_echoes_it(logged_in, app):
     resp = _new_connector(logged_in)
     assert resp.status_code == 303
-    page = logged_in.get(resp.headers["location"])
-    assert "super-secret-sonarr-key" not in page.text
-    assert "A key is stored" in page.text
+    assert resp.headers["location"] == "/settings/connectors?msg=connector_saved"
     with app.state.db.sessionmaker() as db:
         src = db.execute(select(Source)).scalar_one()
+        page = logged_in.get(f"/settings/connectors/{src.id}")
+        assert "super-secret-sonarr-key" not in page.text
+        assert "A key is stored" in page.text
         assert src.base_url == "http://192.0.2.10:8989"
         assert "super-secret" not in src.secret_enc
         assert app.state.box.decrypt(src.secret_enc) == "super-secret-sonarr-key"
@@ -179,7 +219,6 @@ def test_update_with_blank_key_keeps_stored_key(logged_in, app):
 
 
 def test_test_connection_uses_the_form_and_records_the_result(logged_in, app, monkeypatch):
-    from mediawrangler.connectors.arr import SonarrConnector
 
     seen = {}
 
@@ -206,7 +245,6 @@ def test_test_connection_uses_the_form_and_records_the_result(logged_in, app, mo
 
 
 def test_test_connection_on_a_new_connector_reports_failure(logged_in, monkeypatch):
-    from mediawrangler.connectors.arr import SonarrConnector
 
     monkeypatch.setattr(
         SonarrConnector, "test_connection", lambda self: ConnectionTest(False, "401 Unauthorized")
@@ -229,7 +267,6 @@ def test_delete_connector(logged_in, app):
 
 
 def test_arr_rescans_name_the_one_title():
-    from mediawrangler.connectors.arr import RadarrConnector, SonarrConnector
 
     # Radarr ignores "movieIds" on RescanMovie and rescans every film.
     assert RadarrConnector.rescan_body(None, "movie-12") == {"name": "RescanMovie", "movieId": 12}

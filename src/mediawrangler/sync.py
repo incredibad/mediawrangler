@@ -1073,8 +1073,7 @@ class SyncManager:
                     **(
                         {
                             "episodes_with_files": snapshot.episodes_with_files,
-                            "multi_episode_files": snapshot.multi_episode_files,
-                            "episodes_in_multi_files": snapshot.episodes_in_multi_files,
+                            "multi_episode_series": snapshot.multi_episode_series,
                         }
                         if snapshot.episodes_with_files is not None
                         else {}

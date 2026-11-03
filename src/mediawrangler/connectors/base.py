@@ -179,9 +179,8 @@ class Snapshot:
     # Episodes with a file, as the app itself totals them (Sonarr: a file holding
     # two episodes counts twice), so its figure can be shown next to the file count.
     episodes_with_files: int | None = None
-    # Files holding more than one episode, and the episodes in them.
-    multi_episode_files: int | None = None
-    episodes_in_multi_files: int | None = None
+    # Per show with files holding more than one episode: [title, files, episodes in them].
+    multi_episode_series: list[list] | None = None
 
 
 @dataclass

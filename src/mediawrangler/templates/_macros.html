@@ -5,9 +5,10 @@
 
 {# Tooltip: {% call dx.tip("Heading\nBody text") %}what to hover{% endcall %}. The first line is
    the heading when the text has several; static/tooltip.js does the rest, so any element
-   with a data-tip attribute works the same way. Plain text only (it is never read as HTML). #}
-{% macro tip(text, cls="") -%}
-  <span class="tip {{ cls }}" tabindex="0" data-tip="{{ text }}">{{ caller() }}</span>
+   with a data-tip attribute works the same way. Plain text only (it is never read as HTML).
+   icon=true adds a small "i" after the content, so it's clear there is something to hover. #}
+{% macro tip(text, cls="", icon=false) -%}
+  <span class="tip {{ cls }}" tabindex="0" data-tip="{{ text }}">{{ caller() }}{% if icon %}<span class="info-i" aria-hidden="true">i</span>{% endif %}</span>
 {%- endmacro %}
 
 {# A source's name, with a star in front when it is the master. #}

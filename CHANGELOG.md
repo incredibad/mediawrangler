@@ -13,6 +13,11 @@ one build stage of the roadmap.
 - An arr's Physical totals count only its own files, so TV and Anime add up to what Sonarr
   reports. Files in folders marked not managed show apart ("+535 not managed") and still
   count when comparing with the master.
+- Sonarr's Episodes figure has an info icon; its tooltip lists the shows where one file
+  holds several episodes, with how many extra episodes each adds.
+- The trash folder is set on Settings → Trash instead of Writes.
+- The "two-factor is off" banner has a close button, and stays closed for that sign-in.
+- Adding or saving a connector goes back to the list of connectors.
 
 ## [0.12.102] - 2026-11-02
 

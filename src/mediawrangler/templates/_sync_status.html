@@ -18,8 +18,14 @@
           <td class="s0">{{ "{:,}".format(r.series) if r.series else dash }}{% if rel %}{{ dx.delta_if(r.series, mr.series, master.name) }}{% endif %}</td>
           <td class="s1">{{ "{:,}".format(r.movies) if r.movies else dash }}{% if rel %}{{ dx.delta_if(r.movies, mr.movies, master.name) }}{% endif %}</td>
           {% if r.episodes_with_files is not none and not r.episodes %}
-          {% set tiptext = "Episodes with a file\n" ~ "{:,}".format(r.episodes_with_files) ~ " episodes in " ~ "{:,}".format(r.files) ~ " files" ~ (("\n" ~ "{:,}".format(r.multi_episode_files) ~ " files hold more than one episode (" ~ "{:,}".format(r.episodes_in_multi_files) ~ " episodes between them)") if r.multi_episode_files else "") %}
-          <td class="s0">{% call dx.tip(tiptext) %}{{ "{:,}".format(r.episodes_with_files) }}{% endcall %}</td>
+          {% set multi = r.multi_episode_series %}
+          {% set ns = namespace(text="Episodes with a file\n" ~ "{:,}".format(r.episodes_with_files) ~ " episodes in " ~ "{:,}".format(r.files) ~ " files") %}
+          {% if multi %}
+            {% set ns.text = ns.text ~ "\nShows where one file holds several episodes:" %}
+            {% for title, nfiles, neps in multi[:15] %}{% set ns.text = ns.text ~ "\n" ~ title ~ ": +" ~ (neps - nfiles) ~ " (" ~ neps ~ " episodes in " ~ nfiles ~ " files)" %}{% endfor %}
+            {% if multi | length > 15 %}{% set ns.text = ns.text ~ "\nand " ~ (multi | length - 15) ~ " more shows" %}{% endif %}
+          {% endif %}
+          <td class="s0">{% call dx.tip(ns.text, icon=true) %}{{ "{:,}".format(r.episodes_with_files) }}{% endcall %}</td>
           {% else %}
           <td class="s0">{{ "{:,}".format(r.episodes) if r.episodes else dash }}{% if rel %}{{ dx.delta_if(r.episodes, mr.episodes, master.name) }}{% endif %}</td>
           {% endif %}

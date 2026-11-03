@@ -3,7 +3,7 @@
 import hashlib
 import re
 import secrets
-from urllib.parse import urlencode, urlsplit
+from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse, Response
@@ -19,7 +19,6 @@ from ..connectors.base import ConnectorError
 from ..connectors.paths import PathMap
 from ..crypto import SecretBox, SecretDecryptError
 from ..db import utcnow
-from ..fixes import FixRefused
 from ..groups import (
     fits_group,
     get_master,
@@ -64,7 +63,7 @@ from ..writes import (
 from .deps import get_box, get_db, require_user, verify_csrf
 from .routes_auth import use_recovery_code
 from .routes_imports import import_context
-from .templating import templates
+from .templating import TOTP_BANNER_DISMISSED_KEY, templates
 
 router = APIRouter(prefix="/settings", dependencies=[Depends(verify_csrf), Depends(require_user)])
 
@@ -241,6 +240,25 @@ def totp_disable(
     db.execute(delete(RecoveryCode).where(RecoveryCode.user_id == user.id))
     db.commit()
     return _redirect("/settings/security?msg=totp_disabled")
+
+
+@router.post("/security/totp-banner/dismiss")
+def dismiss_totp_banner(
+    request: Request, db: Session = Depends(get_db), user: AdminUser = Depends(require_user)
+):
+    row = db.get(AppSetting, TOTP_BANNER_DISMISSED_KEY)
+    if row is None:
+        row = AppSetting(key=TOTP_BANNER_DISMISSED_KEY, value=[])
+        db.add(row)
+    if user.id not in row.value:
+        row.value = [*row.value, user.id]
+    db.commit()
+    if request.headers.get("hx-request"):
+        return Response("")
+    # Back to the page it was closed on; only a path on this site, never another host.
+    back = urlsplit(request.headers.get("referer") or "")
+    path = back.path if back.path.startswith("/") and not back.path.startswith("//") else "/"
+    return _redirect(path + (f"?{back.query}" if back.query else ""))
 
 
 @router.post("/security/recovery-codes")
@@ -478,7 +496,7 @@ def connector_create(
     )
     db.add(source)
     db.commit()
-    return _redirect(f"/settings/connectors/{source.id}?msg=connector_saved")
+    return _redirect("/settings/connectors?msg=connector_saved")
 
 
 def _get_source(db: Session, source_id: int) -> Source:
@@ -823,7 +841,7 @@ def connector_update(
     if map_changed:
         recanonicalise(db, source)
         request.app.state.syncs.rematch()
-    return _redirect(f"/settings/connectors/{source.id}?msg=connector_saved")
+    return _redirect("/settings/connectors?msg=connector_saved")
 
 
 @router.post("/connectors/{source_id}/delete")
@@ -1089,7 +1107,6 @@ def _writes_context(db: Session) -> dict:
         "servers": sorted(servers.items(), key=lambda kv: kv[0]),
         "all_on": bool(able) and all(a["on"] for a in able),
         "files_on": trash.enabled(db),
-        "trash_dir": trash.configured_dir(db) or "",
         "readonly": trash.unwritable(db),
         "share_writable": not trash.unwritable(db),
     }
@@ -1110,7 +1127,6 @@ def writes_page(
     request: Request,
     preview: int | None = None,
     all: int = 0,
-    trash_problem: str = "",
     db: Session = Depends(get_db),
 ):
     preview_ctx = None
@@ -1148,7 +1164,6 @@ def writes_page(
             **_writes_context(db),
             "preview": preview_ctx,
             "preview_rows": PREVIEW_ROWS,
-            "trash_problem": trash_problem,
         },
     )
 
@@ -1165,15 +1180,6 @@ def writes_status(request: Request, db: Session = Depends(get_db)):
             "oob": True,
         },
     )
-
-
-@router.post("/writes/trash-dir")
-def writes_trash_dir(request: Request, trash_dir: str = Form(""), db: Session = Depends(get_db)):
-    try:
-        trash.set_dir(db, trash_dir)
-    except FixRefused as exc:
-        return _redirect("/settings/writes?" + urlencode({"trash_problem": str(exc)}))
-    return _redirect("/settings/writes")
 
 
 @router.post("/writes/switch/{name}")

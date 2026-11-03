@@ -1,7 +1,7 @@
 """Settings → Trash: what MediaWrangler moved off the share, and putting it back or deleting
 it for good."""
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
@@ -49,6 +49,15 @@ def trash_page(request: Request, problem: str = "", ok: str = "", db: Session = 
             "trash_dir": trash.configured_dir(db) or "",
         },
     )
+
+
+@router.post("/dir")
+def set_dir(trash_dir: str = Form(""), db: Session = Depends(get_db)):
+    try:
+        trash.set_dir(db, trash_dir)
+    except FixRefused as exc:
+        return _back(problem=str(exc))
+    return _back(ok="Trash folder saved.")
 
 
 @router.post("/{item_id}/restore")
