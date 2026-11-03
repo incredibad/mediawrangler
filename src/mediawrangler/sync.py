@@ -1070,6 +1070,11 @@ class SyncManager:
                 run.stats = {
                     **stats.as_dict(),
                     **({"scan": scan} if scan else {}),
+                    **(
+                        {"episodes_with_files": snapshot.episodes_with_files}
+                        if snapshot.episodes_with_files is not None
+                        else {}
+                    ),
                     "matching": match_stats,
                     "watch": watch_stats,
                     "seconds": round(time.monotonic() - started, 1),

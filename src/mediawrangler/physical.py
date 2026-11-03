@@ -98,6 +98,8 @@ class ColumnSummary:
     folders: int = 0
     files: int = 0
     size: int = 0
+    # The share's files counted for an arr in folders marked not managed (One Pace).
+    not_managed_files: int = 0
     issues: dict[str, int] = field(default_factory=dict)
 
 
@@ -359,6 +361,7 @@ def build_physical_view(db: Session, group: LibraryGroup) -> PhysicalView:
                 # the folder shows no difference from the master in the totals.
                 summ.folders += 1
                 summ.files += row.cells[disk_id].files
+                summ.not_managed_files += row.cells[disk_id].files
                 summ.size += row.cells[disk_id].size
         for flag in row.flags:
             if ":" in flag:

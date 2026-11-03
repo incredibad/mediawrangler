@@ -17,7 +17,11 @@
           {% set rel = mr and r.source.id != master.id and types[r.source.type].role == "media_server" %}
           <td class="s0">{{ "{:,}".format(r.series) if r.series else dash }}{% if rel %}{{ dx.delta_if(r.series, mr.series, master.name) }}{% endif %}</td>
           <td class="s1">{{ "{:,}".format(r.movies) if r.movies else dash }}{% if rel %}{{ dx.delta_if(r.movies, mr.movies, master.name) }}{% endif %}</td>
+          {% if r.episodes_with_files is not none and not r.episodes %}
+          <td class="s0" title="Episodes with a file, as {{ s.name }} counts them: a file holding two episodes counts twice, so this can be higher than Files.">{{ "{:,}".format(r.episodes_with_files) }} <span class="muted small">with files</span></td>
+          {% else %}
           <td class="s0">{{ "{:,}".format(r.episodes) if r.episodes else dash }}{% if rel %}{{ dx.delta_if(r.episodes, mr.episodes, master.name) }}{% endif %}</td>
+          {% endif %}
           <td class="s1">{{ "{:,}".format(r.files) if r.files else dash }}</td>
         {% else %}
           <td colspan="4" class="s0 muted">Read in a later release</td>

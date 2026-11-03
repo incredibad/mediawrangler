@@ -54,6 +54,13 @@ def _source_rows(db: Session) -> list[dict]:
         last = db.execute(
             select(SyncRun).where(SyncRun.source_id == s.id).order_by(SyncRun.id.desc()).limit(1)
         ).scalar()
+        # Sonarr totals episodes with a file, not files; its last full read keeps that figure.
+        full = db.execute(
+            select(SyncRun.stats)
+            .where(SyncRun.source_id == s.id, SyncRun.mode == "full", SyncRun.status == "ok")
+            .order_by(SyncRun.id.desc())
+            .limit(1)
+        ).scalar()
         rows.append(
             {
                 "source": s,
@@ -62,6 +69,7 @@ def _source_rows(db: Session) -> list[dict]:
                 "movies": counts.get((s.id, "movie"), 0),
                 "episodes": counts.get((s.id, "episode"), 0),
                 "files": files.get(s.id, 0),
+                "episodes_with_files": (full or {}).get("episodes_with_files"),
                 "last_run": last,
                 "next": next_run(db, s),
             }

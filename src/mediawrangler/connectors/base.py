@@ -174,6 +174,9 @@ class Snapshot:
     items: list[ItemRecord]
     files: list[FileRecord] = field(default_factory=list)
     roots: list[RootRecord] = field(default_factory=list)
+    # Episodes with a file, as the app itself totals them (Sonarr: a file holding
+    # two episodes counts twice), so its figure can be shown next to the file count.
+    episodes_with_files: int | None = None
 
 
 @dataclass

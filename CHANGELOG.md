@@ -7,6 +7,11 @@ one build stage of the roadmap.
 
 ## [Unreleased]
 
+### Changed
+- Sonarr's row under Connectors shows its episodes with files, the total Sonarr itself
+  reports. It can be higher than Files, because a file holding two episodes counts twice.
+- Physical totals say how many of an arr's files come from folders marked not managed.
+
 ## [0.12.102] - 2026-11-02
 
 ### Changed

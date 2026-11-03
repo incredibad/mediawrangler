@@ -391,7 +391,8 @@ class SonarrConnector(_ArrConnector):
                 done += 1
                 if done % 50 == 0:
                     progress(f"Read files for {done} of {len(with_files)} series")
-        return Snapshot(libraries=roots, items=items, files=files)
+        episodes = sum((s.get("statistics") or {}).get("episodeFileCount") or 0 for s in series)
+        return Snapshot(libraries=roots, items=items, files=files, episodes_with_files=episodes)
 
 
 @register
